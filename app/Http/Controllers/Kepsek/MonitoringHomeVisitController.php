@@ -8,59 +8,99 @@ use Illuminate\Support\Facades\Session;
 
 class MonitoringHomeVisitController extends Controller
 {
+    private function headers()
+    {
+        return ['Cookie' => 'token=' . Session::get('token')];
+    }
+
+    private function base()
+    {
+        return env('API_BASE_URL');
+    }
+
     public function index(Request $request)
     {
-        $user  = Session::get('user_data');
+        $user  = Session::get('user_data') ?? Session::get('user');
         $token = Session::get('token');
 
         if (! $user || ! $token) {
             return redirect()->route('login');
         }
 
-        $role         = $user['role'] ?? 'kepala_sekolah';
-        $visitSelesai = [];
-        $visitPending = [];
+        $role    = $user['role'] ?? 'kepala_sekolah';
+        $reqIdTa = $request->get('id_tahun_ajaran');
+
+        $visitSelesai   = [];
+        $visitPending   = [];
+        $taString       = null;
+        $semesterString = null;
 
         try {
-            $allRows    = [];
-            $page       = 1;
-            $totalPages = 1;
+            // 1. Resolve Tahun Ajaran — identik dengan pola GuruBK
+            $rTa = Http::withHeaders($this->headers())->get($this->base() . '/tahun_ajaran');
+            if ($rTa->successful()) {
+                $taList     = $rTa->json();
+                $taTerpilih = null;
 
-            do {
-                $response = Http::withHeaders([
-                    'Cookie' => 'token=' . $token,
-                ])->get(env('API_BASE_URL') . '/home_visit', [
-                    'page'  => $page,
-                    'limit' => 100,
-                ]);
-
-                if (! $response->successful()) {
-                    break;
+                if ($reqIdTa) {
+                    $taTerpilih = collect($taList)->firstWhere('id', $reqIdTa) ?? collect($taList)->firstWhere('id', (int) $reqIdTa);
+                }
+                if (! $taTerpilih) {
+                    $taTerpilih = collect($taList)->firstWhere('status', 'aktif');
+                }
+                if (! $taTerpilih && count($taList) > 0) {
+                    $taTerpilih = $taList[0];
                 }
 
-                $json       = $response->json();
-                $rows       = $json['data'] ?? [];
-                $totalPages = $json['pagination']['totalPages'] ?? 1;
+                if ($taTerpilih) {
+                    $taString       = $taTerpilih['tahun_ajaran'];
+                    $semesterString = $taTerpilih['semester'];
+                }
+            }
 
-                $allRows = array_merge($allRows, $rows);
-                $page++;
+            if (! $taString) {
+                goto render;
+            }
 
-            } while ($page <= $totalPages);
+            // 2. Ambil semua home visit sekaligus dengan limit besar
+            //    (data home visit relatif sedikit, tidak perlu pagination di view)
+            $params = ['page' => 1, 'limit' => 200];
+            if ($taString) {
+                $params['tahun_ajaran'] = $taString;
+            }
 
-            foreach ($allRows as $visit) {
-                $status = $visit['status'] ?? '';
-                if ($status === 'Sudah Terlaksana') {
-                    $visitSelesai[] = $visit;
-                } elseif ($status === 'Rencana Kunjungan') {
-                    $visitPending[] = $visit;
+            if ($semesterString) {
+                $params['semester'] = $semesterString;
+            }
+
+            $response = Http::withHeaders($this->headers())
+                ->get($this->base() . '/home_visit', $params);
+
+            if ($response->successful()) {
+                $rows = $response->json()['data'] ?? [];
+
+                foreach ($rows as $visit) {
+                    $status = $visit['status'] ?? '';
+                    if ($status === 'Sudah Terlaksana') {
+                        $visitSelesai[] = $visit;
+                    } elseif ($status === 'Rencana Kunjungan') {
+                        $visitPending[] = $visit;
+                    }
                 }
             }
 
         } catch (\Exception $e) {
-            \Log::error('MonitoringHomeVisit error: ' . $e->getMessage());
+            \Log::error('MonitoringHomeVisit Kepsek error: ' . $e->getMessage());
         }
 
-        return view('kepsek.monitoring_visit', compact('visitSelesai', 'visitPending', 'role'));
+        render:
+        return view('kepsek.monitoring_visit', compact(
+            'visitSelesai',
+            'visitPending',
+            'role',
+            'reqIdTa',
+            'taString'
+        ));
     }
 
     public function detail(Request $request, $id)
@@ -72,16 +112,14 @@ class MonitoringHomeVisitController extends Controller
         }
 
         try {
-            $response = Http::withHeaders([
-                'Cookie' => 'token=' . $token,
-            ])->get(env('API_BASE_URL') . '/home_visit/' . $id);
+            $response = Http::withHeaders($this->headers())
+                ->get($this->base() . '/home_visit/' . $id);
 
             if ($response->successful()) {
                 return response()->json($response->json());
             }
 
             return response()->json(['error' => 'Gagal ambil data'], 500);
-
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }

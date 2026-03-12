@@ -1,5 +1,5 @@
 <?php
-namespace App\Http\Controllers\Kepsek;
+namespace App\Http\Controllers\GuruBK;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -17,7 +17,7 @@ class DashboardController extends Controller
             return redirect()->route('login');
         }
 
-        $role    = $user['role'] ?? 'kepala_sekolah';
+        $role    = $user['role'] ?? 'guru_bk';
         $headers = ['Cookie' => 'token=' . $token];
         $base    = env('API_BASE_URL');
 
@@ -33,12 +33,10 @@ class DashboardController extends Controller
             ['tingkat' => '9', 'hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpha' => 0],
         ];
 
-        // Nama variabel diseragamkan dengan GuruBK
         $rekapHarian   = $emptyTingkat();
         $rekapMingguan = $emptyTingkat();
         $rekapBulanan  = $emptyTingkat();
 
-        // Fungsi normalisasi identik dengan GuruBK
         $normalisasi = function (array $rows): array {
             $map = [];
             foreach ($rows as $row) {
@@ -105,7 +103,7 @@ class DashboardController extends Controller
                 }, $statistik['siswaTerlambatTerkini']);
             }
 
-            // Rekap per tingkat — identik dengan GuruBK (akses ['tingkat'] ?? [])
+            // Rekap per tingkat
             $r = Http::withHeaders($headers)->get($base . '/statistik/rekap-kehadiran', [
                 'id_tahun_ajaran' => $idTahunAjaran, 'type' => 'daily',
             ]);
@@ -136,11 +134,11 @@ class DashboardController extends Controller
             }
 
         } catch (\Exception $e) {
-            \Log::error('Dashboard Kepsek error: ' . $e->getMessage());
+            \Log::error('Dashboard BK error: ' . $e->getMessage());
         }
 
         render:
-        return view('kepsek.dashboard', compact(
+        return view('guru_bk.dashboard', compact(
             'statistik', 'tren', 'role', 'idTahunAjaran',
             'rekapHarian', 'rekapMingguan', 'rekapBulanan'
         ));

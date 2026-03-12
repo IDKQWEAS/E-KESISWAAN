@@ -35,13 +35,47 @@
         @keyframes fadeIn { to { opacity: 1; transform: translateY(0); } }
         .sidebar-closed { margin-left: -18rem; }
         #sidebar { transition: all 0.3s ease-in-out; z-index: 50; }
+
+        /* ── FIX UTAMA: Cegah SweetAlert2 menggeser layout ── */
+        /* SweetAlert2 menambahkan padding-right & overflow:hidden ke body/html
+           yang menyebabkan sidebar fixed naik/bergeser */
+        html, body {
+            /* Scrollbar selalu tampil agar tidak ada layout shift saat popup muncul */
+            overflow-y: scroll !important;
+            scrollbar-gutter: stable;
+        }
+        body.swal2-shown,
+        html.swal2-shown {
+            /* Override semua manipulasi SweetAlert2 */
+            padding-right: 0 !important;
+            margin-right: 0 !important;
+            overflow: hidden !important;
+        }
+        /* Hilangkan padding yang ditambah SweetAlert ke body */
+        body[style*="padding-right"] {
+            padding-right: 0 !important;
+        }
+        /* Pastikan sidebar tidak terpengaruh overflow body */
+        #sidebar {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            height: 100% !important;
+        }
+        /* Saat sidebar ditutup (lg) gunakan transform alih-alih margin */
+        #sidebar.sidebar-closed {
+            transform: translateX(-100%) !important;
+            margin-left: 0 !important;
+        }
     </style>
 </head>
-<body class="bg-surface flex h-screen overflow-hidden text-slate-600 font-sans">
+{{-- Hapus overflow-hidden dari body agar sidebar tidak terpengaruh swal --}}
+<body class="bg-surface flex h-screen text-slate-600 font-sans">
 
     <x-sidebar :role="$role ?? 'admin'" />
 
-    <main class="flex-1 flex flex-col relative h-full min-w-0 transition-all duration-300">
+    {{-- FIX: tambah padding-left untuk kompensasi sidebar fixed --}}
+    <main id="main-content" class="flex-1 flex flex-col relative h-screen min-w-0 transition-all duration-300 pl-72 lg:pl-72">
 
         <header class="h-20 flex-none px-8 flex items-center justify-between bg-white/90 backdrop-blur-sm z-40 sticky top-0 border-b border-slate-200/50">
             <div class="flex items-center gap-4">
@@ -59,7 +93,6 @@
 
                     @if(!empty($listTahunAjaran))
                         <form method="GET" action="{{ url()->current() }}" id="formTahunAjaran">
-                            {{-- Pertahankan query string lain (misal: kelas, kategori) --}}
                             @foreach(request()->except('id_tahun_ajaran') as $key => $val)
                                 <input type="hidden" name="{{ $key }}" value="{{ $val }}">
                             @endforeach
@@ -104,17 +137,25 @@
 
     <script>
         function toggleSidebar() {
-            const sidebar = document.getElementById("sidebar");
+            const sidebar     = document.getElementById("sidebar");
+            const mainContent = document.getElementById("main-content");
+
             if (window.innerWidth < 1024) {
+                // Mobile: show/hide sidebar
                 sidebar.classList.toggle("hidden");
             } else {
-                sidebar.classList.toggle("sidebar-closed");
+                // Desktop: slide sidebar in/out menggunakan transform (bukan margin)
+                const isClosed = sidebar.classList.toggle("sidebar-closed");
+                // Sesuaikan padding main content
+                mainContent.style.paddingLeft = isClosed ? '0' : '';
                 setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
             }
         }
 
+        // Mobile: sembunyikan sidebar secara default
         if (window.innerWidth < 1024) {
             document.getElementById("sidebar").classList.add("hidden");
+            document.getElementById("main-content").style.paddingLeft = '0';
         }
 
         const selectTA = document.getElementById('selectTahunAjaran');

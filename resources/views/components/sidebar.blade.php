@@ -1,11 +1,11 @@
 @props(['role'])
 
-<aside id="sidebar" class="w-72 bg-navy-900 text-white flex flex-col z-50 shadow-2xl transition-all flex-shrink-0 fixed h-full lg:static">
+{{-- FIX: sidebar selalu fixed, tidak ikut body scroll/layout --}}
+<aside id="sidebar" class="w-72 bg-navy-900 text-white flex flex-col z-50 shadow-2xl flex-shrink-0 fixed top-0 left-0 h-full transition-transform duration-300 ease-in-out">
 
-    <div class="h-20 flex items-center px-8 border-b border-navy-800/50 bg-navy-900 justify-between">
+    <div class="h-20 flex items-center px-8 border-b border-navy-800/50 bg-navy-900 justify-between flex-shrink-0">
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
-                {{-- FIX: gunakan nilai role dari database: 'kepala_sekolah' dan 'guru_bk' --}}
                 @if($role == 'kepala_sekolah')
                     <i class="fa-solid fa-graduation-cap text-white text-lg"></i>
                 @elseif($role == 'guru_bk')
@@ -24,7 +24,7 @@
         </button>
     </div>
 
-    <div class="p-6">
+    <div class="p-6 flex-shrink-0">
         <a href="{{ $role == 'kepala_sekolah' ? '/kepsek/profile' : ($role == 'guru_bk' ? '/bk/profile' : '/admin/profile') }}"
            class="p-4 bg-navy-800/40 rounded-2xl border border-navy-700/50 flex items-center gap-3 cursor-pointer hover:bg-navy-800 transition group block">
             <div class="relative">
@@ -103,7 +103,6 @@
             </x-nav-link>
 
         @else
-            {{-- admin --}}
             <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 mt-2">Menu Utama</p>
 
             <x-nav-link href="/admin/dashboard" icon="fa-chart-line" :active="request()->is('admin/dashboard')">
@@ -143,8 +142,7 @@
         @endif
     </nav>
 
-    <div class="p-6 border-t border-navy-800/50">
-        {{-- FIX: logout harus POST bukan GET/href biasa agar session terhapus dengan benar --}}
+    <div class="p-6 border-t border-navy-800/50 flex-shrink-0">
         <form action="{{ route('logout') }}" method="POST">
             @csrf
             <button type="submit"

@@ -51,8 +51,7 @@
                         @endphp
                         <div
                             class="p-4 border border-slate-100 rounded-[16px] flex justify-between items-center bg-white shadow-sm hover:border-green-300 hover:bg-green-50/30 transition cursor-pointer"
-                            data-id="{{ $visit['id'] }}"
-                            onclick="openDetailVisit(this.dataset.id)"
+                            onclick="openDetailVisit({{ $visit['id'] }})"
                         >
                             <div class="flex items-center gap-3">
                                 <div class="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center text-xs font-bold text-green-700 flex-shrink-0">
@@ -91,8 +90,7 @@
                         @endphp
                         <div
                             class="p-4 border border-orange-100 bg-orange-50/30 rounded-xl flex justify-between items-center hover:bg-orange-50 transition cursor-pointer"
-                            data-id="{{ $visit['id'] }}"
-                            onclick="openDetailVisit(this.dataset.id)"
+                            onclick="openDetailVisit({{ $visit['id'] }})"
                         >
                             <div class="flex gap-3 items-center">
                                 <div class="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center text-xs font-bold text-red-600 flex-shrink-0">
@@ -120,7 +118,8 @@
     </div>
 
     {{-- Modal Detail --}}
-    <div id="modalDetailVisit" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50 backdrop-blur-sm">
+    <div id="modalDetailVisit" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50 backdrop-blur-sm"
+         onclick="if(event.target===this) toggleModal('modalDetailVisit')">
         <div class="bg-white rounded-3xl w-full max-w-md shadow-2xl mx-4 overflow-hidden">
 
             <div class="p-5 border-b border-slate-100 flex justify-between items-center">
@@ -147,7 +146,7 @@
 
                 {{-- Identitas siswa --}}
                 <div class="flex items-center gap-4">
-                    <div id="modal-inisial" class="w-12 h-12 rounded-full bg-[#2563eb] text-white flex items-center justify-center font-bold text-lg flex-shrink-0"></div>
+                    <div id="modal-inisial" class="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center font-bold text-lg flex-shrink-0"></div>
                     <div>
                         <p id="modal-nama"  class="font-bold text-slate-800 text-base"></p>
                         <p id="modal-kelas" class="text-xs text-slate-500 mt-0.5"></p>
@@ -156,7 +155,6 @@
 
                 {{-- Info kunjungan --}}
                 <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-4">
-
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">ID Kunjungan</p>
@@ -167,12 +165,10 @@
                             <p id="modal-status" class="text-sm font-bold"></p>
                         </div>
                     </div>
-
                     <div>
                         <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">Tanggal Kunjungan</p>
                         <p id="modal-tanggal" class="text-slate-800 font-bold text-sm"></p>
                     </div>
-
                     <div class="grid grid-cols-2 gap-4 border-t border-slate-200 pt-4">
                         <div>
                             <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">Dicatat Pada</p>
@@ -183,7 +179,6 @@
                             <p id="modal-updated" class="text-slate-600 text-xs"></p>
                         </div>
                     </div>
-
                 </div>
             </div>
 
@@ -216,15 +211,23 @@
         }
 
         async function openDetailVisit(id) {
+            // Reset state modal
             document.getElementById('modal-loading').classList.remove('hidden');
             document.getElementById('modal-content').classList.add('hidden');
+            document.getElementById('modal-loading').innerHTML = `
+                <svg class="animate-spin h-6 w-6 mx-auto mb-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                </svg>
+                Memuat data...
+            `;
             toggleModal('modalDetailVisit');
 
             try {
                 const res = await fetch('/kepsek/visit/' + id + '/detail');
                 if (!res.ok) throw new Error('Gagal');
 
-                const data = await res.json();
+                const data   = await res.json();
                 const nama   = data.nama_siswa ?? data.nama ?? '-';
                 const status = data.status ?? '-';
 
@@ -236,7 +239,7 @@
                 document.getElementById('modal-created').innerText = formatDatetime(data.created_at);
                 document.getElementById('modal-updated').innerText = formatDatetime(data.updated_at);
 
-                const statusEl    = document.getElementById('modal-status');
+                const statusEl     = document.getElementById('modal-status');
                 statusEl.innerText = status;
                 statusEl.className = status === 'Sudah Terlaksana'
                     ? 'text-sm font-bold text-green-600'
@@ -246,8 +249,8 @@
                 document.getElementById('modal-content').classList.remove('hidden');
 
             } catch (e) {
-                console.error(e);
-                document.getElementById('modal-loading').innerText = 'Gagal memuat data.';
+                document.getElementById('modal-loading').innerHTML =
+                    '<p class="text-red-400 text-sm">Gagal memuat data.</p>';
             }
         }
     </script>

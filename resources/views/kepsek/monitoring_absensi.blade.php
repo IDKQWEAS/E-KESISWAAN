@@ -7,6 +7,7 @@
             <p class="text-sm text-slate-500">Rekapitulasi kehadiran seluruh siswa.</p>
         </div>
 
+        {{-- Filter --}}
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between gap-4">
             <div>
                 <h3 class="font-bold text-sm uppercase text-slate-700">Filter Rekapitulasi</h3>
@@ -14,11 +15,14 @@
             </div>
 
             <form method="GET" action="{{ route('kepsek.absensi') }}" class="flex flex-wrap items-center gap-3">
-                <select
-                    name="kelas"
-                    id="selectKelas"
-                    class="border border-slate-200 p-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-50 outline-none cursor-pointer"
-                >
+
+                {{-- Preserve id_tahun_ajaran dari header global --}}
+                @if($reqIdTa)
+                    <input type="hidden" name="id_tahun_ajaran" value="{{ $reqIdTa }}">
+                @endif
+
+                <select name="kelas"
+                    class="border border-slate-200 p-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-50 outline-none cursor-pointer">
                     <option value="">Semua Kelas</option>
                     @foreach(['7','8','9'] as $tingkat)
                         @foreach(['A','B','C','D','E','F','G'] as $huruf)
@@ -30,30 +34,30 @@
                     @endforeach
                 </select>
 
-                <button
-                    type="submit"
-                    class="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 transition"
-                >
+                <button type="submit"
+                    class="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 transition">
                     <i class="fa-solid fa-filter mr-1"></i> Terapkan
                 </button>
 
-                <button
-                    type="button"
-                    id="btnReset"
-                    onclick="window.location='{{ route('kepsek.absensi') }}'"
-                    class="text-xs text-slate-500 hover:text-slate-700 underline {{ $kelasAktif ? '' : 'hidden' }}"
-                >
-                    Reset
-                </button>
+                @if($kelasAktif)
+                    <a href="{{ route('kepsek.absensi', $reqIdTa ? ['id_tahun_ajaran' => $reqIdTa] : []) }}"
+                       class="text-xs text-slate-500 hover:text-slate-700 underline">
+                        Reset
+                    </a>
+                @endif
             </form>
         </div>
 
+        {{-- Tabel --}}
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
 
             <div class="p-4 border-b bg-slate-50 flex justify-between items-center">
                 <h4 class="font-bold text-sm text-slate-700">
                     Menampilkan:
                     <span class="text-blue-600">{{ $kelasAktif ? 'Kelas ' . $kelasAktif : 'Semua Kelas' }}</span>
+                    @if($taString)
+                        &mdash; <span class="text-slate-400 font-normal">TA {{ $taString }}</span>
+                    @endif
                 </h4>
                 @if(!empty($pagination))
                     <span class="text-xs text-slate-400">
@@ -112,7 +116,7 @@
                         @empty
                             <tr>
                                 <td colspan="9" class="text-center p-8 text-slate-400 text-sm">
-                                    Tidak ada data absensi.
+                                    Tidak ada data absensi untuk filter ini.
                                 </td>
                             </tr>
                         @endforelse
@@ -121,27 +125,34 @@
                 </table>
             </div>
 
+            {{-- Pagination --}}
             @if(!empty($pagination) && ($pagination['totalPages'] ?? 1) > 1)
                 <div class="p-4 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
                     <span>
-                        Halaman {{ $pagination['page'] ?? 1 }} dari {{ $pagination['totalPages'] ?? 1 }}
+                        Halaman <span class="font-bold">{{ $page }}</span> dari
+                        <span class="font-bold">{{ $pagination['totalPages'] ?? 1 }}</span>
+                        &mdash; Total <span class="font-bold">{{ $pagination['total'] ?? 0 }}</span> siswa
                     </span>
                     <div class="flex gap-1">
-                        @if(($pagination['page'] ?? 1) > 1)
-                            <a href="{{ route('kepsek.absensi', array_merge(request()->query(), ['page' => $pagination['page'] - 1])) }}"
+                        @if($page > 1)
+                            <a href="{{ request()->fullUrlWithQuery(['page' => $page - 1]) }}"
                                class="px-3 py-1 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">Prev</a>
+                        @else
+                            <button disabled class="px-3 py-1 bg-white border border-slate-200 rounded-lg opacity-40 cursor-not-allowed">Prev</button>
                         @endif
 
-                        @for($p = 1; $p <= ($pagination['totalPages'] ?? 1); $p++)
-                            <a href="{{ route('kepsek.absensi', array_merge(request()->query(), ['page' => $p])) }}"
-                               class="px-3 py-1 rounded-lg border {{ $p == ($pagination['page'] ?? 1) ? 'bg-primary text-white border-primary' : 'bg-white border-slate-200 hover:bg-slate-50' }}">
+                        @for($p = max(1, $page - 2); $p <= min($pagination['totalPages'] ?? 1, $page + 2); $p++)
+                            <a href="{{ request()->fullUrlWithQuery(['page' => $p]) }}"
+                               class="px-3 py-1 rounded-lg {{ $p === $page ? 'bg-primary text-white' : 'bg-white border border-slate-200 hover:bg-slate-50' }}">
                                 {{ $p }}
                             </a>
                         @endfor
 
-                        @if(($pagination['page'] ?? 1) < ($pagination['totalPages'] ?? 1))
-                            <a href="{{ route('kepsek.absensi', array_merge(request()->query(), ['page' => $pagination['page'] + 1])) }}"
+                        @if($page < ($pagination['totalPages'] ?? 1))
+                            <a href="{{ request()->fullUrlWithQuery(['page' => $page + 1]) }}"
                                class="px-3 py-1 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">Next</a>
+                        @else
+                            <button disabled class="px-3 py-1 bg-white border border-slate-200 rounded-lg opacity-40 cursor-not-allowed">Next</button>
                         @endif
                     </div>
                 </div>

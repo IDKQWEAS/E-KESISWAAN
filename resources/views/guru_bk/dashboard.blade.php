@@ -2,7 +2,7 @@
 
     <div class="space-y-6 fade-in pb-10">
 
-        {{-- Kartu Statistik Utama --}}
+        {{-- Kartu Statistik --}}
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-white p-5 rounded-2xl border border-slate-100 flex justify-between items-center">
                 <div>
@@ -42,7 +42,7 @@
             </div>
         </div>
 
-        {{-- Grafik Statistik Kehadiran Per Tingkat --}}
+        {{-- Grafik Kehadiran Per Tingkat + Tab --}}
         <div class="bg-white rounded-2xl border border-slate-100 p-6">
             <div class="flex justify-between items-start mb-4">
                 <div>
@@ -67,7 +67,6 @@
                 <h3 class="font-bold text-slate-800 mb-4">Proporsi Ketepatan Waktu</h3>
                 <div id="chart-pie" class="w-full h-[220px]"></div>
             </div>
-
             <div class="bg-white rounded-2xl border border-slate-100 p-6 flex flex-col">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="font-bold text-slate-800">Siswa Terlambat Terkini</h3>
@@ -96,13 +95,11 @@
             </div>
         </div>
 
-        {{-- Grafik Tren Pelanggaran --}}
+        {{-- Tren Pelanggaran --}}
         <div class="bg-white rounded-2xl border border-slate-100 p-6">
-            <div class="flex justify-between items-start mb-4">
-                <div>
-                    <h3 class="font-bold text-slate-800">Peta Tren Pelanggaran</h3>
-                    <p class="text-xs text-slate-400 mt-0.5">Tren pelanggaran siswa semester ini.</p>
-                </div>
+            <div class="mb-4">
+                <h3 class="font-bold text-slate-800">Peta Tren Pelanggaran</h3>
+                <p class="text-xs text-slate-400 mt-0.5">Tren pelanggaran siswa semester ini.</p>
             </div>
             <div id="chart-trend" class="w-full h-[280px]"></div>
         </div>
@@ -112,143 +109,86 @@
     @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const statData     = @json($statistik);
-            // Nama variabel diseragamkan dengan GuruBK (array of objects per tingkat)
-            const rekapHarian   = @json($rekapHarian);
-            const rekapMingguan = @json($rekapMingguan);
-            const rekapBulanan  = @json($rekapBulanan);
-            const trenData      = @json($tren);
+            const statData = @json($statistik);
+            const trenData = @json($tren);
 
-            /**
-             * Konversi array rekap per tingkat ke format series ApexCharts bar chart.
-             *
-             * Format input (dari controller, identik GuruBK):
-             * [
-             *   { tingkat: '7', hadir: 120, izin: 5, sakit: 3, alpha: 2 },
-             *   { tingkat: '8', hadir: 115, izin: 4, sakit: 6, alpha: 1 },
-             *   { tingkat: '9', hadir: 110, izin: 7, sakit: 2, alpha: 4 },
-             * ]
-             *
-             * Format output (series ApexCharts):
-             * [
-             *   { name: 'Hadir', data: [120, 115, 110] },
-             *   { name: 'Izin',  data: [5, 4, 7] },
-             *   ...
-             * ]
-             */
-            function rekapToSeries(rows) {
-                // Pastikan rows adalah array, fallback ke kosong
-                if (!Array.isArray(rows) || rows.length === 0) {
-                    return [
-                        { name: 'Hadir', data: [0, 0, 0] },
-                        { name: 'Izin',  data: [0, 0, 0] },
-                        { name: 'Sakit', data: [0, 0, 0] },
-                        { name: 'Alfa',  data: [0, 0, 0] },
-                    ];
-                }
+            // Data per tingkat langsung dari BE (sudah akurat, tidak perlu distribusi)
+            // Format: [{tingkat:'7', hadir:N, izin:N, sakit:N, alpha:N}, ...]
+            const dataHarian   = @json($rekapHarian);
+            const dataMingguan = @json($rekapMingguan);
+            const dataBulanan  = @json($rekapBulanan);
 
-                // Buat map tingkat → row agar urutan 7,8,9 terjamin
-                const map = {};
-                rows.forEach(row => {
-                    map[String(row.tingkat)] = row;
-                });
-
-                const tingkats = ['7', '8', '9'];
-
+            // Konversi array per tingkat → ApexCharts series
+            function toSeries(data) {
                 return [
-                    { name: 'Hadir', data: tingkats.map(t => parseInt(map[t]?.hadir  ?? 0)) },
-                    { name: 'Izin',  data: tingkats.map(t => parseInt(map[t]?.izin   ?? 0)) },
-                    { name: 'Sakit', data: tingkats.map(t => parseInt(map[t]?.sakit  ?? 0)) },
-                    { name: 'Alfa',  data: tingkats.map(t => parseInt(map[t]?.alpha  ?? 0)) },
+                    { name: 'Hadir', data: data.map(d => d.hadir ?? 0) },
+                    { name: 'Izin',  data: data.map(d => d.izin  ?? 0) },
+                    { name: 'Sakit', data: data.map(d => d.sakit ?? 0) },
+                    { name: 'Alfa',  data: data.map(d => d.alpha ?? 0) },
                 ];
             }
 
-            // ── Grafik Kehadiran Per Tingkat ────────────────────────────
             let attendanceChart = new ApexCharts(
-                document.querySelector('#chart-attendance'),
-                {
-                    series: rekapToSeries(rekapHarian),
+                document.querySelector('#chart-attendance'), {
+                    series: toSeries(dataHarian),
                     chart: {
                         type: 'bar', height: 280,
                         toolbar: { show: false },
                         fontFamily: 'Plus Jakarta Sans, sans-serif',
                     },
                     colors: ['#22c55e', '#3b82f6', '#eab308', '#ef4444'],
-                    plotOptions: { bar: { columnWidth: '50%', borderRadius: 3 } },
+                    plotOptions: { bar: { columnWidth: '55%', borderRadius: 3 } },
                     xaxis: { categories: ['Kelas 7', 'Kelas 8', 'Kelas 9'] },
                     grid: { borderColor: '#f1f5f9' },
                     legend: { position: 'bottom', fontSize: '11px' },
                     dataLabels: { enabled: false },
+                    tooltip: { y: { formatter: val => val + ' siswa' } },
                 }
             );
             attendanceChart.render();
 
-            // Tab switching Harian / Mingguan / Bulanan
             window.switchTab = function (tab) {
-                ['harian', 'mingguan', 'bulanan'].forEach(t => {
+                ['harian','mingguan','bulanan'].forEach(t => {
                     const el = document.getElementById('tab-' + t);
                     if (t === tab) {
-                        el.classList.add('bg-white', 'text-slate-800', 'shadow-sm');
+                        el.classList.add('bg-white','text-slate-800','shadow-sm');
                         el.classList.remove('text-slate-500');
                     } else {
-                        el.classList.remove('bg-white', 'text-slate-800', 'shadow-sm');
+                        el.classList.remove('bg-white','text-slate-800','shadow-sm');
                         el.classList.add('text-slate-500');
                     }
                 });
-
-                const map = {
-                    harian   : rekapHarian,
-                    mingguan : rekapMingguan,
-                    bulanan  : rekapBulanan,
-                };
-                attendanceChart.updateSeries(rekapToSeries(map[tab]));
+                const map = { harian: dataHarian, mingguan: dataMingguan, bulanan: dataBulanan };
+                attendanceChart.updateSeries(toSeries(map[tab]));
             };
 
-            // ── Grafik Donut Proporsi ───────────────────────────────────
-            const proporsi   = statData.proporsiKetepatanWaktu ?? 0;
-            const tepatWaktu = Math.round(proporsi * 100); // nilai 0-1 dari API
-            const terlambat  = 100 - tepatWaktu;
-
+            // Donut proporsi ketepatan waktu
+            const tepatWaktu = Math.round((statData.proporsiKetepatanWaktu ?? 0) * 100);
             new ApexCharts(document.querySelector('#chart-pie'), {
-                series: [tepatWaktu, terlambat],
+                series: [tepatWaktu, 100 - tepatWaktu],
                 labels: ['Tepat Waktu', 'Terlambat'],
-                chart: {
-                    type: 'donut', height: 220,
-                    fontFamily: 'Plus Jakarta Sans, sans-serif',
-                },
+                chart: { type: 'donut', height: 220, fontFamily: 'Plus Jakarta Sans, sans-serif' },
                 colors: ['#3b82f6', '#ef4444'],
                 legend: { position: 'bottom', fontSize: '11px' },
                 dataLabels: { enabled: false },
                 plotOptions: { pie: { donut: { size: '70%' } } },
             }).render();
 
-            // ── Grafik Tren Pelanggaran ─────────────────────────────────
+            // Tren pelanggaran
             const bulanLabel = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
-
-            let trendValues = new Array(12).fill(0);
-
-            if (Array.isArray(trenData) && trenData.length > 0) {
+            let trendValues  = new Array(12).fill(0);
+            if (Array.isArray(trenData)) {
                 trenData.forEach(item => {
                     const idx = (item.month ?? 0) - 1;
-                    if (idx >= 0 && idx < 12) {
-                        trendValues[idx] = item.total_pelanggaran ?? 0;
-                    }
+                    if (idx >= 0 && idx < 12) trendValues[idx] = item.total_pelanggaran ?? 0;
                 });
             }
-
             new ApexCharts(document.querySelector('#chart-trend'), {
                 series: [{ name: 'Pelanggaran', data: trendValues }],
-                chart: {
-                    type: 'area', height: 280,
-                    toolbar: { show: false },
-                    fontFamily: 'Plus Jakarta Sans, sans-serif',
-                },
+                chart: { type: 'area', height: 280, toolbar: { show: false }, fontFamily: 'Plus Jakarta Sans, sans-serif' },
                 colors: ['#ef4444'],
                 stroke: { curve: 'smooth', width: 2 },
-                fill: {
-                    type: 'gradient',
-                    gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05 }
-                },
+                fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05 } },
                 xaxis: { categories: bulanLabel },
                 grid: { borderColor: '#f3f4f6' },
                 dataLabels: { enabled: false },
