@@ -9,124 +9,123 @@ use Illuminate\Support\Facades\Session;
 class PemantauanController extends Controller
 {
     private function headers()
-    {
-        return ['Cookie' => 'token=' . Session::get('token')];
-    }
-
+    {return ['Cookie' => 'token=' . Session::get('token')];}
     private function base()
+    {return env('API_BASE_URL');}
+
+    private function resolveTahunAjaran($reqIdTa)
     {
-        return env('API_BASE_URL');
+        try {
+            $r = Http::withHeaders($this->headers())->get($this->base() . '/tahun_ajaran');
+            if ($r->successful()) {
+                $taList     = $r->json();
+                $taTerpilih = $reqIdTa ? (collect($taList)->firstWhere('id', $reqIdTa) ?? collect($taList)->firstWhere('id', (int) $reqIdTa)) : collect($taList)->firstWhere('status', 'aktif');
+                return [
+                    'tahun_ajaran' => $taTerpilih['tahun_ajaran'] ?? null,
+                    'semester'     => $taTerpilih['semester'] ?? null,
+                ];
+            }
+        } catch (\Exception $e) {}
+        return ['tahun_ajaran' => null, 'semester' => null];
     }
 
     public function index(Request $request)
     {
         $user  = Session::get('user_data') ?? Session::get('user');
         $token = Session::get('token');
-
         if (! $user || ! $token) {
             return redirect()->route('login');
         }
 
-        $role    = $user['role'] ?? 'guru_bk';
-        $page    = $request->get('page', 1);
-        $search  = $request->get('search', '');
-        $reqIdTa = $request->get('id_tahun_ajaran'); // Tangkap filter dari header
+        $role   = $user['role'] ?? 'guru_bk';
+        $page   = (int) $request->get('page', 1);
+        $search = $request->get('search', '');
+        $kelas  = $request->get('kelas', '');
+
+        $taResolved = $this->resolveTahunAjaran($request->get('id_tahun_ajaran'));
 
         $siswaList  = [];
         $pagination = [];
 
         try {
-            // 1. Resolve Tahun Ajaran
-            $taString       = null;
-            $semesterString = null;
-
-            $rTa = Http::withHeaders($this->headers())->get($this->base() . '/tahun_ajaran');
-            if ($rTa->successful()) {
-                $taList     = $rTa->json();
-                $taTerpilih = null;
-
-                if ($reqIdTa) {
-                    $taTerpilih = collect($taList)->firstWhere('id', $reqIdTa) ?? collect($taList)->firstWhere('id', (int) $reqIdTa);
-                }
-                if (! $taTerpilih) {
-                    $taTerpilih = collect($taList)->firstWhere('status', 'aktif');
-                }
-                if ($taTerpilih) {
-                    $taString       = $taTerpilih['tahun_ajaran'];
-                    $semesterString = $taTerpilih['semester'];
-                }
-            }
-
-            // 2. Fetch data total poin beserta filter tahun ajaran dan semester
             $params = ['page' => $page, 'limit' => 10, 'min_poin' => 1];
             if ($search) {
                 $params['search'] = $search;
             }
 
-            if ($taString) {
-                $params['tahun_ajaran'] = $taString;
+            if ($kelas) {
+                $params['kelas'] = $kelas;
             }
 
-            if ($semesterString) {
-                $params['semester'] = $semesterString;
+            if ($taResolved['tahun_ajaran']) {
+                $params['tahun_ajaran'] = $taResolved['tahun_ajaran'];
             }
 
-            $r = Http::withHeaders($this->headers())
-                ->get($this->base() . '/pelanggaran/total', $params);
+            if ($taResolved['semester']) {
+                $params['semester'] = $taResolved['semester'];
+            }
 
+            $r = Http::withHeaders($this->headers())->get($this->base() . '/pelanggaran/total', $params);
             if ($r->successful()) {
-                $allData    = $r->json()['data'] ?? [];
+                $siswaList  = $r->json()['data'] ?? [];
                 $pagination = $r->json()['pagination'] ?? [];
-
-                // Hanya tampilkan siswa yang punya pelanggaran (total_poin > 0)
-                $siswaList = array_values(array_filter($allData, fn($s) => ($s['total_poin'] ?? 0) > 0));
-
-                // Sesuaikan total di pagination dengan jumlah yang sudah difilter
-                $pagination['total'] = count($siswaList);
             }
-        } catch (\Exception $e) {
-            \Log::error('Pemantauan index error: ' . $e->getMessage());
-        }
+        } catch (\Exception $e) {}
 
-        return view('guru_bk.pemantauan', compact(
-            'role', 'siswaList', 'pagination', 'page', 'search'
-        ));
+        return view('guru_bk.pemantauan', compact('role', 'siswaList', 'pagination', 'page', 'search', 'kelas'));
     }
 
-    public function detail($id)
+    public function detail(Request $request, $id)
     {
         try {
-            // 1. Ambil data siswa lengkap dari /siswa/:id
-            $rSiswa = Http::withHeaders($this->headers())
-                ->get($this->base() . '/siswa/' . $id);
+            $taResolved = $this->resolveTahunAjaran($request->get('id_tahun_ajaran'));
 
-            $siswa = $rSiswa->successful() ? $rSiswa->json() : null;
+            $nisn        = $request->get('nisn');
+            $paramsSiswa = ['limit' => 10];
+            if ($taResolved['tahun_ajaran']) {
+                $paramsSiswa['tahun_ajaran'] = $taResolved['tahun_ajaran'];
+            }
 
-            // 2. Ambil riwayat pelanggaran dari /pelanggaran/total?search=<nama_siswa>
+            if ($taResolved['semester']) {
+                $paramsSiswa['semester'] = $taResolved['semester'];
+            }
+
+            if ($nisn) {
+                $paramsSiswa['search'] = $nisn;
+            }
+
+            $rSiswa = Http::withHeaders($this->headers())->get($this->base() . '/siswa', $paramsSiswa);
+            $siswa  = null;
+
+            if ($rSiswa->successful()) {
+                foreach (($rSiswa->json()['data'] ?? []) as $row) {
+                    if ((string) $row['id'] === (string) $id) {$siswa = $row;
+                        break;}
+                }
+            }
+
             $pelanggaran = [];
             $totalPoin   = 0;
-
             if ($siswa) {
-                $rTotal = Http::withHeaders($this->headers())
-                    ->get($this->base() . '/pelanggaran/total', [
-                        'search' => $siswa['nama'] ?? '',
-                        'limit'  => 1000,
-                    ]);
+                $paramsTotal = ['search' => $siswa['nisn'], 'limit' => 10];
+                if ($taResolved['tahun_ajaran']) {
+                    $paramsTotal['tahun_ajaran'] = $taResolved['tahun_ajaran'];
+                }
 
+                if ($taResolved['semester']) {
+                    $paramsTotal['semester'] = $taResolved['semester'];
+                }
+
+                $rTotal = Http::withHeaders($this->headers())->get($this->base() . '/pelanggaran/total', $paramsTotal);
                 if ($rTotal->successful()) {
-                    $rows = $rTotal->json()['data'] ?? [];
-
-                    // Cari baris yang id-nya cocok dengan $id
-                    foreach ($rows as $row) {
+                    foreach (($rTotal->json()['data'] ?? []) as $row) {
                         if ((string) $row['id'] === (string) $id) {
                             $totalPoin = $row['total_poin'] ?? 0;
-
-                            // riwayat_pelanggaran adalah JSON string dari JSON_ARRAYAGG
-                            $raw = $row['riwayat_pelanggaran'] ?? [];
+                            $raw       = $row['riwayat_pelanggaran'] ?? [];
                             if (is_string($raw)) {
                                 $raw = json_decode($raw, true) ?? [];
                             }
-                            // Buang entry null (dari CASE WHEN di query)
+
                             $pelanggaran = array_values(array_filter($raw));
                             break;
                         }
@@ -134,13 +133,7 @@ class PemantauanController extends Controller
                 }
             }
 
-            return response()->json([
-                'siswa'       => $siswa,
-                'pelanggaran' => $pelanggaran,
-                'total_poin'  => $totalPoin,
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['message' => 'Server error'], 500);
-        }
+            return response()->json(['siswa' => $siswa, 'pelanggaran' => $pelanggaran, 'total_poin' => $totalPoin]);
+        } catch (\Exception $e) {return response()->json(['message' => 'Server error'], 500);}
     }
 }

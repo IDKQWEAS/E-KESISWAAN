@@ -1,61 +1,72 @@
 <x-layout-app title="Pengaturan Sistem" role="admin">
-    
-    <header class="h-16 flex-none px-8 flex items-center justify-between bg-white border-b border-slate-200 sticky top-0 z-20">
-        <h2 class="text-lg font-bold text-slate-800 tracking-tight">Pengaturan</h2>
-        <div class="flex items-center gap-2">
-            <div class="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-[10px]">A</div>
-            <span class="text-xs font-bold text-slate-600">Admin</span>
-        </div>
-    </header>
+ 
 
     <div class="flex-1 overflow-y-auto p-8 custom-scroll bg-[#f8fafc]">
-        
         <div class="w-full flex justify-center">
+            <div class="bg-white rounded-[24px] border border-slate-200 shadow-sm p-8 w-full max-w-3xl">
 
-            <div class="bg-white rounded-[20px] border border-slate-200 shadow-sm p-8 w-full max-w-3xl">
-                
                 <div class="flex items-center gap-3 mb-8">
-                    <i class="fa-solid fa-gear text-[#2563eb] text-xl"></i>
-                    <h1 class="text-xl font-bold text-slate-800">Pengaturan Sistem</h1>
+                    <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                        <i class="fa-solid fa-sliders text-lg"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-slate-800">Konfigurasi Operasional</h1>
+                        <p class="text-xs text-slate-500">Atur batasan poin dan jam kehadiran siswa</p>
+                    </div>
                 </div>
 
-                <form action="#" class="space-y-8">
+                @if(session('success'))
+                    <div class="mb-6 bg-emerald-50 border border-emerald-100 text-emerald-600 px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-3">
+                        <i class="fa-solid fa-circle-check"></i> {{ session('success') }}
+                    </div>
+                @endif
+
+                <form action="{{ route('admin.pengaturan.update') }}" method="POST" class="space-y-6">
+                    @csrf
                     
-                    <div>
-                        <label class="block text-sm font-bold text-slate-700 mb-1">Maksimal Poin Pelanggaran</label>
-                        <p class="text-slate-500 text-xs mb-3">Batas poin sebelum siswa dikembalikan ke orang tua.</p>
-                        
-                        <div class="flex items-center gap-3">
-                            <input type="number" value="100" class="w-32 border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition text-center">
-                            <span class="text-sm font-bold text-slate-600">Poin</span>
+                    {{-- POIN --}}
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-black text-slate-400 uppercase tracking-wider ml-1">Poin Pelanggaran Awal</label>
+                        <input type="number" name="poin_awal" value="{{ $pengaturan['maks_poin_pelanggaran'] ?? 0 }}"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all">
+                    </div>
+
+                    {{-- JAM MASUK --}}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-black text-slate-400 uppercase tracking-wider ml-1">Jam Masuk</label>
+                            <input type="time" name="jam_masuk" value="{{ isset($pengaturan['jam_masuk']) ? substr($pengaturan['jam_masuk'], 0, 5) : '07:00' }}"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 transition-all">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-black text-red-400 uppercase tracking-wider ml-1">Batas Jam Terlambat</label>
+                            <input type="time" name="waktu_terlambat" value="{{ isset($pengaturan['jam_terlambat']) ? substr($pengaturan['jam_terlambat'], 0, 5) : '07:30' }}"
+                                class="w-full bg-red-50/30 border border-red-100 rounded-xl px-4 py-3 text-sm font-bold text-red-600 outline-none focus:border-red-500 transition-all">
                         </div>
                     </div>
 
-                    <div class="border-t border-slate-50"></div>
-
-                    <div>
-                        <label class="block text-sm font-bold text-slate-700 mb-1">Waktu Terlambat</label>
-                        <p class="text-slate-500 text-xs mb-3">Siswa dianggap terlambat jika scan setelah waktu ini.</p>
-                        
-                        <div class="flex items-center gap-4">
-                            <div class="relative w-32">
-                                <input type="time" value="07:01" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-bold text-red-600 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition text-center appearance-none">
-                                <i class="fa-regular fa-clock absolute right-3 top-3 text-slate-400 text-xs pointer-events-none"></i>
-                            </div>
-                            <span class="text-xs font-bold text-slate-400">(Otomatis dapat Poin Keterlambatan)</span>
+                    {{-- JAM PULANG --}}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-black text-blue-400 uppercase tracking-wider ml-1">Jam Boleh Pulang</label>
+                            <input type="time" name="jam_pulang_mulai" value="{{ isset($pengaturan['jam_boleh_pulang']) ? substr($pengaturan['jam_boleh_pulang'], 0, 5) : '14:00' }}"
+                                class="w-full bg-blue-50/30 border border-blue-100 rounded-xl px-4 py-3 text-sm font-bold text-blue-600 outline-none focus:border-blue-500 transition-all">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-black text-slate-400 uppercase tracking-wider ml-1">Batas Akhir Pulang</label>
+                            <input type="time" name="jam_pulang_akhir" value="{{ isset($pengaturan['batas_akhir_pulang']) ? substr($pengaturan['batas_akhir_pulang'], 0, 5) : '15:30' }}"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-blue-500 transition-all">
                         </div>
                     </div>
 
-                    <div class="pt-8 flex justify-end">
-                        <button type="button" class="bg-[#2563eb] hover:bg-blue-700 text-white py-3 px-6 rounded-xl text-sm font-bold shadow-lg shadow-blue-200 transition">
-                            Simpan Pengaturan
+                    <div class="pt-6 border-t border-slate-100 flex justify-end">
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white py-3.5 px-10 rounded-xl text-xs font-black shadow-lg shadow-blue-100 transition-all active:scale-95 uppercase tracking-widest">
+                            <i class="fa-solid fa-floppy-disk mr-2"></i> Simpan Perubahan
                         </button>
                     </div>
-
                 </form>
 
             </div>
-
-        </div> </div>
-
-</x-layout-app>
+        </div>
+    </div>
+</x-layout-app> 

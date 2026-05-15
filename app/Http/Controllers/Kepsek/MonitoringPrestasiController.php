@@ -9,20 +9,35 @@ use Illuminate\Support\Facades\Session;
 class MonitoringPrestasiController extends Controller
 {
     private function headers()
-    {
-        return ['Cookie' => 'token=' . Session::get('token')];
-    }
-
+    {return ['Cookie' => 'token=' . Session::get('token')];}
     private function base()
+    {return env('API_BASE_URL');}
+
+    private function resolveTahunAjaran($reqIdTa)
     {
-        return env('API_BASE_URL');
+        try {
+            $r = Http::withHeaders($this->headers())->get($this->base() . '/tahun_ajaran');
+            if ($r->successful()) {
+                $taList     = $r->json();
+                $taTerpilih = $reqIdTa ? (collect($taList)->firstWhere('id', $reqIdTa) ?? collect($taList)->firstWhere('id', (int) $reqIdTa)) : collect($taList)->firstWhere('status', 'aktif');
+                if (! $taTerpilih && count($taList) > 0) {
+                    $taTerpilih = $taList[0];
+                }
+
+                return [
+                    'id'           => $taTerpilih['id'] ?? null,
+                    'tahun_ajaran' => $taTerpilih['tahun_ajaran'] ?? null,
+                    'semester'     => $taTerpilih['semester'] ?? null,
+                ];
+            }
+        } catch (\Exception $e) {}
+        return ['id' => null, 'tahun_ajaran' => null, 'semester' => null];
     }
 
     public function index(Request $request)
     {
         $user  = Session::get('user_data') ?? Session::get('user');
         $token = Session::get('token');
-
         if (! $user || ! $token) {
             return redirect()->route('login');
         }
@@ -31,91 +46,47 @@ class MonitoringPrestasiController extends Controller
         $filterKategori = $request->get('kategori');
         $filterTingkat  = $request->get('tingkat');
         $page           = max(1, (int) $request->get('page', 1));
-        $limit          = 12; // grid 3 kolom, 4 baris = 12
-        $reqIdTa        = $request->get('id_tahun_ajaran');
+        $limit          = 12;
 
-        $prestasi       = [];
-        $pagination     = ['total' => 0, 'page' => $page, 'limit' => $limit, 'totalPages' => 1];
-        $taString       = null;
-        $semesterString = null;
+        $taResolved = $this->resolveTahunAjaran($request->get('id_tahun_ajaran'));
+        $reqIdTa    = $taResolved['id'];
+        $taString   = $taResolved['tahun_ajaran'];
+
+        $prestasi   = [];
+        $pagination = ['total' => 0, 'page' => $page, 'limit' => $limit, 'totalPages' => 1];
 
         try {
-            // 1. Resolve Tahun Ajaran — identik dengan pola GuruBK
-            $rTa = Http::withHeaders($this->headers())->get($this->base() . '/tahun_ajaran');
-            if ($rTa->successful()) {
-                $taList     = $rTa->json();
-                $taTerpilih = null;
-
-                if ($reqIdTa) {
-                    $taTerpilih = collect($taList)->firstWhere('id', $reqIdTa) ?? collect($taList)->firstWhere('id', (int) $reqIdTa);
-                }
-                if (! $taTerpilih) {
-                    $taTerpilih = collect($taList)->firstWhere('status', 'aktif');
-                }
-                if (! $taTerpilih && count($taList) > 0) {
-                    $taTerpilih = $taList[0];
-                }
-
-                if ($taTerpilih) {
-                    $taString       = $taTerpilih['tahun_ajaran'];
-                    $semesterString = $taTerpilih['semester'];
-                }
-            }
-
             if (! $taString) {
                 goto render;
             }
 
-            // 2. Ambil data prestasi dengan filter TA + semester (langsung 1 request, tidak loop)
             $params = ['page' => $page, 'limit' => $limit];
-            if ($taString) {
-                $params['tahun_ajaran'] = $taString;
+            if ($taResolved['tahun_ajaran']) {
+                $params['tahun_ajaran'] = $taResolved['tahun_ajaran'];
             }
 
-            if ($semesterString) {
-                $params['semester'] = $semesterString;
+            if ($taResolved['semester']) {
+                $params['semester'] = $taResolved['semester'];
             }
 
-            $response = Http::withHeaders($this->headers())
-                ->get($this->base() . '/prestasi', $params);
+            $r = Http::withHeaders($this->headers())->get($this->base() . '/prestasi', $params);
+            if ($r->successful()) {
+                $rows       = $r->json()['data'] ?? [];
+                $pagination = $r->json()['pagination'] ?? $pagination;
 
-            if ($response->successful()) {
-                $json       = $response->json();
-                $rows       = $json['data'] ?? [];
-                $pagination = $json['pagination'] ?? $pagination;
-
-                // Filter kategori & tingkat di PHP (BE /prestasi tidak support param ini)
                 if ($filterKategori) {
-                    $rows = array_values(array_filter(
-                        $rows,
-                        fn($item) => ($item['kategori'] ?? '') === $filterKategori
-                    ));
+                    $rows = array_values(array_filter($rows, fn($i) => ($i['kategori'] ?? '') === $filterKategori));
                 }
+
                 if ($filterTingkat) {
-                    $rows = array_values(array_filter(
-                        $rows,
-                        fn($item) => ($item['tingkat'] ?? '') === $filterTingkat
-                    ));
+                    $rows = array_values(array_filter($rows, fn($i) => ($i['tingkat'] ?? '') === $filterTingkat));
                 }
 
                 $prestasi = $rows;
             }
-
-        } catch (\Exception $e) {
-            \Log::error('MonitoringPrestasi Kepsek error: ' . $e->getMessage());
-        }
+        } catch (\Exception $e) {}
 
         render:
-        return view('kepsek.monitoring_prestasi', compact(
-            'prestasi',
-            'pagination',
-            'role',
-            'filterKategori',
-            'filterTingkat',
-            'reqIdTa',
-            'taString',
-            'page',
-            'limit'
-        ));
+        return view('kepsek.monitoring_prestasi', compact('prestasi', 'pagination', 'role', 'filterKategori', 'filterTingkat', 'reqIdTa', 'taString', 'page', 'limit'));
     }
 }

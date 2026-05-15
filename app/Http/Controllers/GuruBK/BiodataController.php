@@ -18,11 +18,33 @@ class BiodataController extends Controller
         return env('API_BASE_URL');
     }
 
+    // HELPER PENERJEMAH TAHUN AJARAN BARU
+    private function resolveTahunAjaran($reqIdTa)
+    {
+        try {
+            $r = Http::withHeaders($this->headers())->get($this->base() . '/tahun_ajaran');
+            if ($r->successful()) {
+                $taList     = $r->json();
+                $taTerpilih = $reqIdTa ? (collect($taList)->firstWhere('id', $reqIdTa) ?? collect($taList)->firstWhere('id', (int) $reqIdTa)) : collect($taList)->firstWhere('status', 'aktif');
+                if (! $taTerpilih && count($taList) > 0) {
+                    $taTerpilih = $taList[0];
+                }
+
+                return [
+                    'id'           => $taTerpilih['id'] ?? null,
+                    'tahun_ajaran' => $taTerpilih['tahun_ajaran'] ?? null,
+                    'semester'     => $taTerpilih['semester'] ?? null,
+                    'list'         => $taList,
+                ];
+            }
+        } catch (\Exception $e) {}
+        return ['id' => null, 'tahun_ajaran' => null, 'semester' => null, 'list' => []];
+    }
+
     public function index(Request $request)
     {
         $user  = Session::get('user_data') ?? Session::get('user');
         $token = Session::get('token');
-
         if (! $user || ! $token) {
             return redirect()->route('login');
         }
@@ -31,51 +53,20 @@ class BiodataController extends Controller
         $kelasAktif = $request->get('kelas', '');
         $search     = $request->get('search', '');
         $page       = $request->get('page', 1);
-        $reqIdTa    = $request->get('id_tahun_ajaran'); // Tangkap filter dari header
 
-        $siswa           = [];
-        $pagination      = [];
-        $tahunAjaranList = [];
-        $idTahunAjaran   = null;
-        $taString        = null;
-        $semesterString  = null;
+        $taResolved      = $this->resolveTahunAjaran($request->get('id_tahun_ajaran'));
+        $idTahunAjaran   = $taResolved['id'];
+        $tahunAjaranList = $taResolved['list'];
 
-        $kelasList = [
+        $siswa      = [];
+        $pagination = [];
+        $kelasList  = [
             '7A', '7B', '7C', '7D', '7E', '7F', '7G',
             '8A', '8B', '8C', '8D', '8E', '8F', '8G',
             '9A', '9B', '9C', '9D', '9E', '9F', '9G',
         ];
 
         try {
-            // 1. Ambil list tahun ajaran untuk menterjemahkan ID menjadi String
-            $r = Http::withHeaders($this->headers())->get($this->base() . '/tahun_ajaran');
-            if ($r->successful()) {
-                $tahunAjaranList = $r->json();
-
-                $taTerpilih = null;
-                // Jika ada ID dari parameter URL (pilihan dropdown)
-                if ($reqIdTa) {
-                    $taTerpilih = collect($tahunAjaranList)->firstWhere('id', $reqIdTa) ?? collect($tahunAjaranList)->firstWhere('id', (int) $reqIdTa);
-                }
-
-                // Jika tidak ada, default ke tahun ajaran aktif
-                if (! $taTerpilih) {
-                    $taTerpilih = collect($tahunAjaranList)->firstWhere('status', 'aktif');
-                }
-
-                // Fallback jika belum ada yang diset aktif
-                if (! $taTerpilih && count($tahunAjaranList) > 0) {
-                    $taTerpilih = $tahunAjaranList[0];
-                }
-
-                if ($taTerpilih) {
-                    $idTahunAjaran  = $taTerpilih['id'];
-                    $taString       = $taTerpilih['tahun_ajaran'];
-                    $semesterString = $taTerpilih['semester'];
-                }
-            }
-
-            // 2. Ambil data siswa dengan menyisipkan filter Tahun Ajaran & Semester
             $params = ['page' => $page, 'limit' => 10];
             if ($kelasAktif) {
                 $params['kelas'] = $kelasAktif;
@@ -85,56 +76,61 @@ class BiodataController extends Controller
                 $params['search'] = $search;
             }
 
-            if ($taString) {
-                $params['tahun_ajaran'] = $taString;
+            if ($taResolved['tahun_ajaran']) {
+                $params['tahun_ajaran'] = $taResolved['tahun_ajaran'];
             }
 
-            if ($semesterString) {
-                $params['semester'] = $semesterString;
+            if ($taResolved['semester']) {
+                $params['semester'] = $taResolved['semester'];
             }
 
-            $r = Http::withHeaders($this->headers())
-                ->get($this->base() . '/siswa', $params);
-
+            $r = Http::withHeaders($this->headers())->get($this->base() . '/siswa', $params);
             if ($r->successful()) {
-                $json       = $r->json();
-                $siswa      = $json['data'] ?? [];
-                $pagination = $json['pagination'] ?? [];
+                $siswa      = $r->json()['data'] ?? [];
+                $pagination = $r->json()['pagination'] ?? [];
             }
-
         } catch (\Exception $e) {
             \Log::error('Biodata index error: ' . $e->getMessage());
         }
 
         return view('guru_bk.biodata', compact(
-            'role', 'siswa', 'pagination',
-            'kelasAktif', 'search', 'kelasList',
-            'tahunAjaranList', 'idTahunAjaran'
+            'role', 'siswa', 'pagination', 'kelasAktif', 'search', 'kelasList', 'tahunAjaranList', 'idTahunAjaran'
         ));
     }
 
+    // CRUD: STORE (UTUH 100%)
     public function store(Request $request)
     {
         $request->validate([
             'id_tahun_ajaran' => 'required',
             'nama'            => 'required|string',
-            'nis'             => 'required|string',
+            'nipd'            => 'required|string',
+            'nik'             => 'required|string',
             'nisn'            => 'required|string',
             'kelas'           => 'required|string',
             'jenis_kelamin'   => 'required|in:L,P',
+            'agama'           => 'required|string',
         ]);
 
         try {
             $parts = [
                 ['name' => 'id_tahun_ajaran', 'contents' => (string) $request->id_tahun_ajaran],
                 ['name' => 'nama', 'contents' => $request->nama],
-                ['name' => 'nis', 'contents' => $request->nis],
+                ['name' => 'nipd', 'contents' => $request->nipd],
+                ['name' => 'nik', 'contents' => $request->nik],
                 ['name' => 'nisn', 'contents' => $request->nisn],
                 ['name' => 'kelas', 'contents' => $request->kelas],
                 ['name' => 'jenis_kelamin', 'contents' => $request->jenis_kelamin],
+                ['name' => 'agama', 'contents' => $request->agama ?? ''],
                 ['name' => 'tempat_lahir', 'contents' => $request->tempat_lahir ?? ''],
                 ['name' => 'tanggal_lahir', 'contents' => $request->tanggal_lahir ?? ''],
                 ['name' => 'alamat', 'contents' => $request->alamat ?? ''],
+                ['name' => 'rt', 'contents' => $request->rt ?? ''],
+                ['name' => 'rw', 'contents' => $request->rw ?? ''],
+                ['name' => 'dusun', 'contents' => $request->dusun ?? ''],
+                ['name' => 'kelurahan', 'contents' => $request->kelurahan ?? ''],
+                ['name' => 'kecamatan', 'contents' => $request->kecamatan ?? ''],
+                ['name' => 'kode_pos', 'contents' => $request->kode_pos ?? ''],
                 ['name' => 'nama_ayah', 'contents' => $request->nama_ayah ?? ''],
                 ['name' => 'pekerjaan_ayah', 'contents' => $request->pekerjaan_ayah ?? ''],
                 ['name' => 'nama_ibu', 'contents' => $request->nama_ibu ?? ''],
@@ -172,16 +168,37 @@ class BiodataController extends Controller
         }
     }
 
+    // CRUD: UPDATE (UTUH 100%)
     public function update(Request $request, $id)
     {
+        $request->validate([
+            'nama'          => 'required|string',
+            'nipd'          => 'required|string',
+            'nik'           => 'required|string',
+            'nisn'          => 'required|string',
+            'kelas'         => 'required|string',
+            'jenis_kelamin' => 'required|in:L,P',
+            'agama'         => 'required|string',
+        ]);
+
         try {
             $parts = [
                 ['name' => 'nama', 'contents' => $request->nama ?? ''],
+                ['name' => 'nipd', 'contents' => $request->nipd ?? ''],
+                ['name' => 'nik', 'contents' => $request->nik ?? ''],
+                ['name' => 'nisn', 'contents' => $request->nisn ?? ''],
                 ['name' => 'kelas', 'contents' => $request->kelas ?? ''],
                 ['name' => 'jenis_kelamin', 'contents' => $request->jenis_kelamin ?? ''],
+                ['name' => 'agama', 'contents' => $request->agama ?? ''],
                 ['name' => 'tempat_lahir', 'contents' => $request->tempat_lahir ?? ''],
                 ['name' => 'tanggal_lahir', 'contents' => $request->tanggal_lahir ?? ''],
                 ['name' => 'alamat', 'contents' => $request->alamat ?? ''],
+                ['name' => 'rt', 'contents' => $request->rt ?? ''],
+                ['name' => 'rw', 'contents' => $request->rw ?? ''],
+                ['name' => 'dusun', 'contents' => $request->dusun ?? ''],
+                ['name' => 'kelurahan', 'contents' => $request->kelurahan ?? ''],
+                ['name' => 'kecamatan', 'contents' => $request->kecamatan ?? ''],
+                ['name' => 'kode_pos', 'contents' => $request->kode_pos ?? ''],
                 ['name' => 'nama_ayah', 'contents' => $request->nama_ayah ?? ''],
                 ['name' => 'pekerjaan_ayah', 'contents' => $request->pekerjaan_ayah ?? ''],
                 ['name' => 'nama_ibu', 'contents' => $request->nama_ibu ?? ''],
@@ -219,6 +236,7 @@ class BiodataController extends Controller
         }
     }
 
+    // CRUD: DESTROY (UTUH 100%)
     public function destroy($id)
     {
         try {
@@ -240,85 +258,51 @@ class BiodataController extends Controller
 
     public function downloadTemplate()
     {
-        $token = Session::get('token');
         try {
-            $response = Http::withHeaders(['Cookie' => 'token=' . $token])
-                ->timeout(30)
-                ->get($this->base() . '/export/siswa/excel-template');
-
-            if ($response->successful()) {
-                return response($response->body())
+            $r = Http::withHeaders($this->headers())->timeout(30)->get($this->base() . '/export/siswa/excel-template');
+            if ($r->successful()) {
+                return response($r->body())
                     ->header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                     ->header('Content-Disposition', 'attachment; filename="template_data_siswa.xlsx"');
             }
-
             return back()->with('error', 'Gagal mengunduh template.');
-        } catch (\Exception $e) {
-            return back()->with('error', 'Server error: ' . $e->getMessage());
-        }
+        } catch (\Exception $e) {return back()->with('error', 'Server error.');}
     }
 
     public function downloadExcel(Request $request)
     {
-        $token = Session::get('token');
         try {
-            $tahunAjaranStr = $request->get('tahun_ajaran');
-            $kelas          = $request->get('kelas', ''); // filter kelas dari halaman
+            $taResolved = $this->resolveTahunAjaran($request->get('id_tahun_ajaran'));
+            $kelas      = $request->get('kelas', '');
 
-            if (! $tahunAjaranStr) {
-                $r = Http::withHeaders(['Cookie' => 'token=' . $token])
-                    ->get($this->base() . '/tahun_ajaran');
-
-                if ($r->successful()) {
-                    $taList = $r->json();
-                    foreach ($taList as $ta) {
-                        if (($ta['status'] ?? '') === 'aktif') {
-                            $tahunAjaranStr = $ta['tahun_ajaran'];
-                            break;
-                        }
-                    }
-                    if (! $tahunAjaranStr && count($taList) > 0) {
-                        $tahunAjaranStr = $taList[0]['tahun_ajaran'] ?? null;
-                    }
-                }
+            if (! $taResolved['tahun_ajaran']) {
+                return back()->with('error', 'Tahun ajaran tidak valid.');
             }
 
-            if (! $tahunAjaranStr) {
-                return back()->with('error', 'Data tahun ajaran aktif tidak ditemukan di server.');
-            }
-
-            $params = ['tahun_ajaran' => $tahunAjaranStr];
+            $params = [
+                'tahun_ajaran' => $taResolved['tahun_ajaran'],
+                'semester'     => $taResolved['semester'],
+            ];
             if ($kelas) {
                 $params['kelas'] = $kelas;
             }
 
-            $filename = $kelas
-                ? "data_siswa_kelas_{$kelas}.xlsx"
-                : "data_siswa_semua.xlsx";
+            $filename = $kelas ? "data_siswa_kelas_{$kelas}.xlsx" : "data_siswa_semua.xlsx";
+            $r        = Http::withHeaders($this->headers())->timeout(30)->get($this->base() . '/export/siswa/excel', $params);
 
-            $response = Http::withHeaders(['Cookie' => 'token=' . $token])
-                ->timeout(30)
-                ->get($this->base() . '/export/siswa/excel', $params);
-
-            if ($response->successful()) {
-                return response($response->body())
+            if ($r->successful()) {
+                return response($r->body())
                     ->header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                     ->header('Content-Disposition', "attachment; filename=\"{$filename}\"");
             }
-
-            $msg = $response->json()['message'] ?? 'Gagal dari sisi server.';
-            return back()->with('error', 'Gagal mengunduh Excel: ' . $msg);
-
-        } catch (\Exception $e) {
-            \Log::error('Download Excel Siswa Error: ' . $e->getMessage());
-            return back()->with('error', 'Server error: ' . $e->getMessage());
-        }
+            return back()->with('error', 'Gagal mengunduh Excel: ' . ($r->json()['message'] ?? ''));
+        } catch (\Exception $e) {return back()->with('error', 'Server error.');}
     }
 
+    // CRUD: IMPORT EXCEL (UTUH 100%)
     public function importExcel(Request $request)
     {
         $request->validate(['file' => 'required|file|mimes:xlsx,xls']);
-
         $token = Session::get('token');
         try {
             $file = $request->file('file');

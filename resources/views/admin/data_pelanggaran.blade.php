@@ -1,178 +1,126 @@
 <x-layout-app title="Data Pelanggaran" role="admin">
-    
-    <header class="h-16 flex-none px-8 flex items-center justify-between bg-white border-b border-slate-200 sticky top-0 z-20">
-        <h2 class="text-lg font-bold text-slate-800 tracking-tight">Data Pelanggaran</h2>
-        <div class="flex items-center gap-2">
-            <div class="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-[10px]">A</div>
-            <span class="text-xs font-bold text-slate-600">Admin</span>
-        </div>
-    </header>
+ 
 
     <div class="flex-1 overflow-y-auto p-6 custom-scroll bg-[#f8fafc]">
-        
-        <div class="w mx-auto space-y-5">
+        <div class="mx-auto space-y-5">
 
-            <div class="bg-white rounded-[16px] border border-slate-200 shadow-sm p-5">
-                <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-                    
-                    <div>
-                        <h1 class="text-lg font-bold text-slate-800">Data Pelanggaran Siswa</h1>
-                        <p class="text-slate-500 text-xs mt-0.5">
-                            Monitoring catatan pelanggaran (Read Only).
-                        </p>
+            {{-- FILTER PANEL --}}
+            <div class="bg-white rounded-[16px] border border-slate-200 shadow-sm p-5 flex flex-col xl:flex-row justify-between items-center gap-4">
+                <div>
+                    <h1 class="text-lg font-bold text-slate-800">Database Pelanggaran</h1>
+                    <p class="text-slate-500 text-[11px] mt-0.5 uppercase font-bold tracking-wider">
+                        Periode: <span class="text-blue-600">{{ $taAktif['tahun_ajaran'] ?? '-' }} {{ $taAktif['semester'] ?? '' }}</span>
+                    </p>
+                </div>
+
+                <div class="flex items-center gap-3 w-full xl:w-auto">
+                    <div class="relative flex-1 xl:w-64">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" id="liveSearchInput" placeholder="Cari Nama Siswa..." 
+                            class="w-full pl-10 pr-4 h-11 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all">
                     </div>
-
-                    <div class="flex flex-wrap items-center gap-3 w-full xl:w-auto">
-                        
-                        <div class="relative group">
-                            <select class="appearance-none bg-white border border-slate-200 hover:border-slate-300 rounded-lg py-2 pl-3 pr-8 text-xs font-bold text-slate-600 outline-none focus:border-blue-500 cursor-pointer min-w-[130px] transition-all">
-                                <option>Semua Kelas</option>
-                                <option>Kelas 7</option>
-                                <option>Kelas 8</option>
-                                <option>Kelas 9</option>
-                            </select>
-                            <i class="fa-solid fa-chevron-down absolute right-3 top-3 text-[10px] text-slate-400 pointer-events-none"></i>
-                        </div>
-
-                        <div class="relative">
-                            <input type="date" 
-                                   class="bg-white border border-slate-200 hover:border-slate-300 rounded-lg py-2 px-3 text-xs font-bold text-slate-600 outline-none focus:border-blue-500 cursor-pointer transition-all"
-                                   placeholder="mm/dd/yyyy">
-                        </div>
-
-                        <div class="relative flex-1 xl:w-[220px]">
-                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
-                            <input type="text" 
-                                   placeholder="Cari Nama..." 
-                                   class="w-full bg-white border border-slate-200 hover:border-slate-300 rounded-lg py-2 pl-9 pr-3 text-xs font-bold text-slate-600 placeholder:text-slate-400 outline-none focus:border-blue-500 transition-all">
-                        </div>
-
-                    </div>
+                    <select id="filterKelas" class="h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-blue-500 cursor-pointer">
+                        <option value="">Semua Kelas</option>
+                        @foreach(['7A','7B','7C','7D','7E','7F','7G','8A','8B','8C','8D','8E','8F','8G','9A','9B','9C','9D','9E','9F','9G'] as $k)
+                            <option value="{{ $k }}">{{ $k }}</option>
+                        @endforeach
+                    </select>
                 </div>
             </div>
 
-            <div class="bg-white rounded-[16px] border border-slate-200 shadow-sm p-0 overflow-hidden">
-                
+            {{-- TABEL DATA --}}
+            <div class="bg-white rounded-[16px] border border-slate-200 shadow-sm overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
-                        <thead class="border-b border-slate-100 bg-[#fbfcfd]">
-                            <tr>
-                                <th class="py-4 pl-6 pr-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">TANGGAL/WAKTU</th>
-                                <th class="py-4 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">SISWA</th>
-                                <th class="py-4 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">PELANGGARAN</th>
-                                <th class="py-4 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[35%]">KRONOLOGI</th>
-                                <th class="py-4 pr-6 pl-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">POIN</th>
+                        <thead>
+                            <tr class="bg-slate-50/50 border-b border-slate-100">
+                                <th class="py-4 px-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Siswa</th>
+                                <th class="py-4 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Kelas</th>
+                                <th class="py-4 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Jenis Pelanggaran</th>
+                                <th class="py-4 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Kronologi</th>
+                                <th class="py-4 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Poin</th>
+                                <th class="py-4 px-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Tanggal</th>
                             </tr>
                         </thead>
-                        
-                        <tbody class="divide-y divide-slate-50">
-                            
-                            <tr class="hover:bg-slate-50 transition group">
-                                <td class="py-4 pl-6 pr-4 align-middle">
-                                    <div class="flex flex-col">
-                                        <span class="text-xs font-bold text-slate-600 font-mono">10 Jan 2026</span>
-                                        <span class="text-[10px] font-bold text-slate-400 font-mono">09:30 WIB</span>
-                                    </div>
-                                </td>
-                                
-                                <td class="py-4 px-4 align-middle">
-                                    <span class="text-sm font-bold text-slate-800">Doni Tata (9A)</span>
-                                </td>
-                                
-                                <td class="py-4 px-4 align-middle">
-                                    <span class="bg-red-50 text-red-600 border border-red-100 px-3 py-1 rounded-md text-xs font-bold inline-block">
-                                        Merokok
-                                    </span>
-                                </td>
-                                
-                                <td class="py-4 px-4 align-middle">
-                                    <p class="text-xs text-slate-500 italic leading-relaxed line-clamp-2">
-                                        Siswa ditemukan merokok di belakang kantin saat jam istirahat.
-                                    </p>
-                                </td>
-                                
-                                <td class="py-4 pr-6 pl-4 align-middle text-right">
-                                    <span class="text-sm font-bold text-red-600">+25</span>
-                                </td>
-                            </tr>
+                        <tbody id="tableBody">
+                            @forelse($dataPelanggaran as $p)
+                                <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0 group table-row-item" 
+                                    data-kelas="{{ $p['kelas'] ?? '' }}">
+                                    
+                                    <td class="px-6 py-4">
+                                        <div class="flex flex-col">
+                                            <span class="text-sm font-bold text-slate-800 searchable-name">{{ $p['nama_siswa'] ?? 'Siswa' }}</span>
+                                            <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-tighter">NISN: {{ $p['nisn'] ?? '-' }}</span>
+                                        </div>
+                                    </td>
 
-                            <tr class="hover:bg-slate-50 transition group">
-                                <td class="py-4 pl-6 pr-4 align-middle">
-                                    <div class="flex flex-col">
-                                        <span class="text-xs font-bold text-slate-600 font-mono">12 Jan 2026</span>
-                                        <span class="text-[10px] font-bold text-slate-400 font-mono">07:20 WIB</span>
-                                    </div>
-                                </td>
-                                <td class="py-4 px-4 align-middle">
-                                    <span class="text-sm font-bold text-slate-800">Budi Santoso (8B)</span>
-                                </td>
-                                <td class="py-4 px-4 align-middle">
-                                    <span class="bg-orange-50 text-orange-600 border border-orange-100 px-3 py-1 rounded-md text-xs font-bold inline-block">
-                                        Terlambat
-                                    </span>
-                                </td>
-                                <td class="py-4 px-4 align-middle">
-                                    <p class="text-xs text-slate-500 italic leading-relaxed line-clamp-2">
-                                        Datang terlambat lebih dari 15 menit tanpa keterangan jelas.
-                                    </p>
-                                </td>
-                                <td class="py-4 pr-6 pl-4 align-middle text-right">
-                                    <span class="text-sm font-bold text-red-600">+5</span>
-                                </td>
-                            </tr>
+                                    <td class="px-4 py-4 text-center">
+                                        <span class="px-2 py-1 bg-slate-100 text-slate-600 rounded text-[10px] font-black tracking-tighter">{{ $p['kelas'] ?? '-' }}</span>
+                                    </td>
 
-                            <tr class="hover:bg-slate-50 transition group">
-                                <td class="py-4 pl-6 pr-4 align-middle">
-                                    <div class="flex flex-col">
-                                        <span class="text-xs font-bold text-slate-600 font-mono">14 Jan 2026</span>
-                                        <span class="text-[10px] font-bold text-slate-400 font-mono">07:00 WIB</span>
-                                    </div>
-                                </td>
-                                <td class="py-4 px-4 align-middle">
-                                    <span class="text-sm font-bold text-slate-800">Citra Kirana (7A)</span>
-                                </td>
-                                <td class="py-4 px-4 align-middle">
-                                    <span class="bg-yellow-50 text-yellow-600 border border-yellow-100 px-3 py-1 rounded-md text-xs font-bold inline-block">
-                                        Atribut
-                                    </span>
-                                </td>
-                                <td class="py-4 px-4 align-middle">
-                                    <p class="text-xs text-slate-500 italic leading-relaxed line-clamp-2">
-                                        Tidak memakai dasi dan topi saat upacara bendera.
-                                    </p>
-                                </td>
-                                <td class="py-4 pr-6 pl-4 align-middle text-right">
-                                    <span class="text-sm font-bold text-red-600">+3</span>
-                                </td>
-                            </tr>
+                                    <td class="px-4 py-4">
+                                        <span class="text-xs font-bold text-slate-700">{{ $p['pelanggaran'] ?? '-' }}</span>
+                                    </td>
 
+                                    <td class="px-4 py-4 max-w-[250px]">
+                                        <p class="text-[11px] text-slate-500 italic truncate">{{ $p['keterangan'] ?? '-' }}</p>
+                                    </td>
+
+                                    <td class="px-4 py-4 text-center">
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full bg-red-50 text-red-600 text-xs font-black border border-red-100">
+                                            +{{ $p['poin'] ?? '0' }}
+                                        </span>
+                                    </td>
+
+                                    <td class="px-6 py-4 text-right">
+                                        <div class="flex flex-col">
+                                            <span class="text-xs font-bold text-slate-700">
+                                                {{ isset($p['tanggal']) ? \Carbon\Carbon::parse($p['tanggal'])->format('d M Y') : '-' }}
+                                            </span>
+                                            <span class="text-[10px] font-medium text-slate-400 uppercase">Terpantau</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="py-20 text-center">
+                                        <i class="fa-solid fa-clipboard-check text-slate-200 text-5xl mb-4"></i>
+                                        <p class="text-slate-400 text-sm font-bold uppercase tracking-widest">Belum ada catatan pelanggaran.</p>
+                                    </td>
+                                </tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>
-
-                <div class="flex flex-col md:flex-row justify-between items-center p-4 border-t border-slate-100 bg-white">
-                    <p class="text-slate-500 text-[10px] mb-3 md:mb-0 font-bold">
-                        Menampilkan 1–10 dari 50 data
-                    </p>
-                    
-                    <div class="flex items-center gap-1.5">
-                        <button class="px-3 py-1 border border-slate-200 rounded-lg text-slate-600 text-[10px] font-bold hover:bg-slate-50 hover:border-slate-300 transition">
-                            Prev
-                        </button>
-                        <button class="w-7 h-7 bg-[#2563eb] text-white rounded-lg text-[10px] font-bold shadow-md shadow-blue-200 transition">
-                            1
-                        </button>
-                        <button class="w-7 h-7 bg-white border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold hover:bg-slate-50 hover:border-slate-300 transition">
-                            2
-                        </button>
-                        <button class="px-3 py-1 border border-slate-200 rounded-lg text-slate-600 text-[10px] font-bold hover:bg-slate-50 hover:border-slate-300 transition">
-                            Next
-                        </button>
-                    </div>
-                </div>
-
             </div>
+        </div>
+    </div>
 
-        </div> </div>
+    @push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('liveSearchInput');
+            const filterKelas = document.getElementById('filterKelas');
+            const rows = document.querySelectorAll('.table-row-item');
 
+            function filter() {
+                const term = searchInput.value.toLowerCase();
+                const selectedKelas = filterKelas.value;
+
+                rows.forEach(row => {
+                    const name = row.querySelector('.searchable-name').textContent.toLowerCase();
+                    const rowKelas = row.getAttribute('data-kelas');
+                    
+                    const matchName = name.includes(term);
+                    const matchKelas = selectedKelas === "" || rowKelas === selectedKelas;
+
+                    row.style.display = (matchName && matchKelas) ? '' : 'none';
+                });
+            }
+
+            searchInput.addEventListener('keyup', filter);
+            filterKelas.addEventListener('change', filter);
+        });
+    </script>
+    @endpush
 </x-layout-app>

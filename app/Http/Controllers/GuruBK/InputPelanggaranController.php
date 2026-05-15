@@ -9,36 +9,41 @@ use Illuminate\Support\Facades\Session;
 class InputPelanggaranController extends Controller
 {
     private function headers()
-    {
-        return ['Cookie' => 'token=' . Session::get('token')];
-    }
-
+    {return ['Cookie' => 'token=' . Session::get('token')];}
     private function base()
-    {
-        return env('API_BASE_URL');
-    }
-
+    {return env('API_BASE_URL');}
     private function normalizeDate(?string $tanggal): ?string
+    {return $tanggal ? substr($tanggal, 0, 10) : null;}
+
+    private function resolveTahunAjaran($reqIdTa)
     {
-        if (! $tanggal) {
-            return null;
-        }
-        return substr($tanggal, 0, 10);
+        try {
+            $r = Http::withHeaders($this->headers())->get($this->base() . '/tahun_ajaran');
+            if ($r->successful()) {
+                $taList     = $r->json();
+                $taTerpilih = $reqIdTa ? (collect($taList)->firstWhere('id', $reqIdTa) ?? collect($taList)->firstWhere('id', (int) $reqIdTa)) : collect($taList)->firstWhere('status', 'aktif');
+                return [
+                    'tahun_ajaran' => $taTerpilih['tahun_ajaran'] ?? null,
+                    'semester'     => $taTerpilih['semester'] ?? null,
+                ];
+            }
+        } catch (\Exception $e) {}
+        return ['tahun_ajaran' => null, 'semester' => null];
     }
 
     public function index(Request $request)
     {
         $user  = Session::get('user_data') ?? Session::get('user');
         $token = Session::get('token');
-
         if (! $user || ! $token) {
             return redirect()->route('login');
         }
 
-        $role    = $user['role'] ?? 'guru_bk';
-        $page    = $request->get('page', 1);
-        $kelas   = $request->get('kelas', '');
-        $reqIdTa = $request->get('id_tahun_ajaran'); // Tangkap id_tahun_ajaran dari dropdown
+        $role  = $user['role'] ?? 'guru_bk';
+        $page  = $request->get('page', 1);
+        $kelas = $request->get('kelas', '');
+
+        $taResolved = $this->resolveTahunAjaran($request->get('id_tahun_ajaran'));
 
         $pelanggaran = [];
         $jenisList   = [];
@@ -46,82 +51,47 @@ class InputPelanggaranController extends Controller
         $pagination  = [];
 
         try {
-            // 1. Resolve Tahun Ajaran
-            $taString       = null;
-            $semesterString = null;
-
-            $rTa = Http::withHeaders($this->headers())->get($this->base() . '/tahun_ajaran');
-            if ($rTa->successful()) {
-                $taList     = $rTa->json();
-                $taTerpilih = null;
-
-                if ($reqIdTa) {
-                    $taTerpilih = collect($taList)->firstWhere('id', $reqIdTa) ?? collect($taList)->firstWhere('id', (int) $reqIdTa);
-                }
-                if (! $taTerpilih) {
-                    $taTerpilih = collect($taList)->firstWhere('status', 'aktif');
-                }
-                if ($taTerpilih) {
-                    $taString       = $taTerpilih['tahun_ajaran'];
-                    $semesterString = $taTerpilih['semester'];
-                }
-            }
-
-            // 2. Ambil data Pelanggaran dengan filter TA
             $params = ['page' => $page, 'limit' => 10];
             if ($kelas) {
                 $params['kelas'] = $kelas;
             }
 
-            if ($taString) {
-                $params['tahun_ajaran'] = $taString;
+            if ($taResolved['tahun_ajaran']) {
+                $params['tahun_ajaran'] = $taResolved['tahun_ajaran'];
             }
 
-            if ($semesterString) {
-                $params['semester'] = $semesterString;
+            if ($taResolved['semester']) {
+                $params['semester'] = $taResolved['semester'];
             }
 
-            $r = Http::withHeaders($this->headers())
-                ->get($this->base() . '/pelanggaran', $params);
-
-            if ($r->successful()) {
-                $pelanggaran = $r->json()['data'] ?? [];
-                $pagination  = $r->json()['pagination'] ?? [];
+            $r1 = Http::withHeaders($this->headers())->get($this->base() . '/pelanggaran', $params);
+            if ($r1->successful()) {
+                $pelanggaran = $r1->json()['data'] ?? [];
+                $pagination  = $r1->json()['pagination'] ?? [];
             }
 
-            // 3. Ambil data Jenis Pelanggaran
-            $r = Http::withHeaders($this->headers())
-                ->get($this->base() . '/jenis_pelanggaran');
-
-            if ($r->successful()) {
-                $jenisList = $r->json();
+            $r2 = Http::withHeaders($this->headers())->get($this->base() . '/jenis_pelanggaran');
+            if ($r2->successful()) {
+                $jenisList = $r2->json();
             }
 
-            // 4. Ambil data Siswa dengan filter TA (agar dropdown hanya berisi siswa tahun terkait)
             $paramsSiswa = ['limit' => 1000];
-            if ($taString) {
-                $paramsSiswa['tahun_ajaran'] = $taString;
+            if ($taResolved['tahun_ajaran']) {
+                $paramsSiswa['tahun_ajaran'] = $taResolved['tahun_ajaran'];
             }
 
-            if ($semesterString) {
-                $paramsSiswa['semester'] = $semesterString;
+            if ($taResolved['semester']) {
+                $paramsSiswa['semester'] = $taResolved['semester'];
             }
 
-            $r = Http::withHeaders($this->headers())
-                ->get($this->base() . '/siswa', $paramsSiswa);
-
-            if ($r->successful()) {
-                $siswaList = $r->json()['data'] ?? $r->json();
+            $r3 = Http::withHeaders($this->headers())->get($this->base() . '/siswa', $paramsSiswa);
+            if ($r3->successful()) {
+                $siswaList = $r3->json()['data'] ?? $r3->json();
             }
 
-        } catch (\Exception $e) {
-            \Log::error('InputPelanggaran index error: ' . $e->getMessage());
-        }
+        } catch (\Exception $e) {}
 
-        return view('guru_bk.input_pelanggaran', compact(
-            'role', 'pelanggaran', 'jenisList', 'siswaList',
-            'pagination', 'kelas', 'page'
-        ));
+        return view('guru_bk.input_pelanggaran', compact('role', 'pelanggaran', 'jenisList', 'siswaList', 'pagination', 'kelas', 'page'));
     }
 
     public function store(Request $request)

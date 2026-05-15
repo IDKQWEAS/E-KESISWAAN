@@ -9,112 +9,86 @@ use Illuminate\Support\Facades\Session;
 class PerizinanController extends Controller
 {
     private function headers(): array
-    {
-        return ['Cookie' => 'token=' . Session::get('token')];
-    }
-
+    {return ['Cookie' => 'token=' . Session::get('token')];}
     private function base(): string
+    {return env('API_BASE_URL');}
+
+    private function resolveTahunAjaran($reqIdTa)
     {
-        return env('API_BASE_URL');
+        try {
+            $r = Http::withHeaders($this->headers())->get($this->base() . '/tahun_ajaran');
+            if ($r->successful()) {
+                $taList     = $r->json();
+                $taTerpilih = $reqIdTa ? (collect($taList)->firstWhere('id', $reqIdTa) ?? collect($taList)->firstWhere('id', (int) $reqIdTa)) : collect($taList)->firstWhere('status', 'aktif');
+                return [
+                    'tahun_ajaran' => $taTerpilih['tahun_ajaran'] ?? null,
+                    'semester'     => $taTerpilih['semester'] ?? null,
+                ];
+            }
+        } catch (\Exception $e) {}
+        return ['tahun_ajaran' => null, 'semester' => null];
     }
 
     public function index(Request $request)
     {
         $user  = Session::get('user_data') ?? Session::get('user');
         $token = Session::get('token');
-
         if (! $user || ! $token) {
             return redirect()->route('login');
         }
 
-        $role      = $user['role'] ?? 'guru_bk';
-        $reqIdTa   = $request->get('id_tahun_ajaran');
+        $role       = $user['role'] ?? 'guru_bk';
+        $taResolved = $this->resolveTahunAjaran($request->get('id_tahun_ajaran'));
+
         $perizinan = [];
         $siswaList = [];
-
-        $kelasList = [
-            '7A', '7B', '7C', '7D', '7E', '7F', '7G',
-            '8A', '8B', '8C', '8D', '8E', '8F', '8G',
-            '9A', '9B', '9C', '9D', '9E', '9F', '9G',
-        ];
+        $kelasList = ['7A', '7B', '7C', '7D', '7E', '7F', '7G', '8A', '8B', '8C', '8D', '8E', '8F', '8G', '9A', '9B', '9C', '9D', '9E', '9F', '9G'];
 
         try {
-            // 1. Resolve Tahun Ajaran
-            $taString       = null;
-            $semesterString = null;
-
-            $rTa = Http::withHeaders($this->headers())->get($this->base() . '/tahun_ajaran');
-            if ($rTa->successful()) {
-                $taList     = $rTa->json();
-                $taTerpilih = null;
-
-                if ($reqIdTa) {
-                    $taTerpilih = collect($taList)->firstWhere('id', $reqIdTa) ?? collect($taList)->firstWhere('id', (int) $reqIdTa);
-                }
-                if (! $taTerpilih) {
-                    $taTerpilih = collect($taList)->firstWhere('status', 'aktif');
-                }
-                if ($taTerpilih) {
-                    $taString       = $taTerpilih['tahun_ajaran'];
-                    $semesterString = $taTerpilih['semester'];
-                }
-            }
-
-            // 2. Fetch Perizinan
             $params = [];
-            if ($taString) {
-                $params['tahun_ajaran'] = $taString;
+            if ($taResolved['tahun_ajaran']) {
+                $params['tahun_ajaran'] = $taResolved['tahun_ajaran'];
             }
 
-            if ($semesterString) {
-                $params['semester'] = $semesterString;
+            if ($taResolved['semester']) {
+                $params['semester'] = $taResolved['semester'];
             }
 
-            $r = Http::withHeaders($this->headers())
-                ->get($this->base() . '/perizinan', $params);
-
-            if ($r->successful()) {
-                $body      = $r->json();
+            $r1 = Http::withHeaders($this->headers())->get($this->base() . '/perizinan', $params);
+            if ($r1->successful()) {
+                $body      = $r1->json();
                 $perizinan = is_array($body) ? $body : ($body['data'] ?? []);
+                $perizinan = array_map(function ($p) {
+                    $p['jam_mulai']   = isset($p['jam_mulai']) ? (int) $p['jam_mulai'] : null;
+                    $p['jam_selesai'] = isset($p['jam_selesai']) ? (int) $p['jam_selesai'] : null;
+                    return $p;
+                }, $perizinan);
             }
 
-            // 3. Fetch Siswa untuk Modal Tambah Izin
             $paramsSiswa = ['limit' => 9999];
-            if ($taString) {
-                $paramsSiswa['tahun_ajaran'] = $taString;
+            if ($taResolved['tahun_ajaran']) {
+                $paramsSiswa['tahun_ajaran'] = $taResolved['tahun_ajaran'];
             }
 
-            if ($semesterString) {
-                $paramsSiswa['semester'] = $semesterString;
+            if ($taResolved['semester']) {
+                $paramsSiswa['semester'] = $taResolved['semester'];
             }
 
-            $rSiswa = Http::withHeaders($this->headers())
-                ->get($this->base() . '/siswa', $paramsSiswa);
-
-            if ($rSiswa->successful()) {
-                $body      = $rSiswa->json();
+            $r2 = Http::withHeaders($this->headers())->get($this->base() . '/siswa', $paramsSiswa);
+            if ($r2->successful()) {
+                $body      = $r2->json();
                 $siswaList = $body['data'] ?? $body;
             }
-        } catch (\Exception $e) {
-            \Log::error('Perizinan index error: ' . $e->getMessage());
-        }
+        } catch (\Exception $e) {}
 
-        // Filtering di frontend jika form filter disubmit
         if ($request->filled('kelas')) {
-            $perizinan = array_values(array_filter(
-                $perizinan,
-                fn($p) => ($p['kelas'] ?? '') === $request->kelas
-            ));
+            $perizinan = array_values(array_filter($perizinan, fn($p) => ($p['kelas'] ?? '') === $request->kelas));
         }
 
         if ($request->filled('tanggal')) {
-            $perizinan = array_values(array_filter(
-                $perizinan,
-                function ($p) use ($request) {
-                    $tgl = $p['tanggal'] ?? $p['created_at'] ?? '';
-                    return str_starts_with((string) $tgl, $request->tanggal);
-                }
-            ));
+            $perizinan = array_values(array_filter($perizinan, function ($p) use ($request) {
+                return str_starts_with((string) ($p['tanggal'] ?? $p['created_at'] ?? ''), $request->tanggal);
+            }));
         }
 
         return view('guru_bk.perizinan', compact('role', 'perizinan', 'siswaList', 'kelasList'));
@@ -123,9 +97,11 @@ class PerizinanController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'id_siswa' => 'required',
-            'status'   => 'required|in:izin,sakit,alpha',
-            'tanggal'  => 'required|date',
+            'id_siswa'    => 'required',
+            'status'      => 'required|in:izin,sakit,alpha',
+            'tanggal'     => 'required|date',
+            'jam_mulai'   => 'required|integer|min:1|max:10',
+            'jam_selesai' => 'required|integer|min:1|max:10|gte:jam_mulai',
         ]);
 
         try {
@@ -133,6 +109,8 @@ class PerizinanController extends Controller
                 ['name' => 'id_siswa', 'contents' => (string) $request->id_siswa],
                 ['name' => 'status', 'contents' => $request->status],
                 ['name' => 'tanggal', 'contents' => $request->tanggal],
+                ['name' => 'jam_mulai', 'contents' => (string) $request->jam_mulai],
+                ['name' => 'jam_selesai', 'contents' => (string) $request->jam_selesai],
                 ['name' => 'keterangan', 'contents' => $request->keterangan ?? ''],
             ];
 
@@ -167,8 +145,10 @@ class PerizinanController extends Controller
     public function update(Request $request, $id)
     {
         $request->validate([
-            'status'  => 'nullable|in:izin,sakit,alpha',
-            'tanggal' => 'nullable|date',
+            'status'      => 'nullable|in:izin,sakit,alpha',
+            'tanggal'     => 'nullable|date',
+            'jam_mulai'   => 'nullable|integer|min:1|max:10',
+            'jam_selesai' => 'nullable|integer|min:1|max:10|gte:jam_mulai',
         ]);
 
         try {
@@ -178,11 +158,21 @@ class PerizinanController extends Controller
                 if ($request->filled('status')) {
                     $parts[] = ['name' => 'status', 'contents' => $request->status];
                 }
+
                 if ($request->filled('keterangan')) {
                     $parts[] = ['name' => 'keterangan', 'contents' => $request->keterangan];
                 }
+
                 if ($request->filled('tanggal')) {
                     $parts[] = ['name' => 'tanggal', 'contents' => $request->tanggal];
+                }
+
+                if ($request->filled('jam_mulai')) {
+                    $parts[] = ['name' => 'jam_mulai', 'contents' => (string) $request->jam_mulai];
+                }
+
+                if ($request->filled('jam_selesai')) {
+                    $parts[] = ['name' => 'jam_selesai', 'contents' => (string) $request->jam_selesai];
                 }
 
                 $file    = $request->file('gambar');
@@ -198,9 +188,11 @@ class PerizinanController extends Controller
 
             } else {
                 $data = array_filter([
-                    'status'     => $request->status ?: null,
-                    'keterangan' => $request->keterangan ?: null,
-                    'tanggal'    => $request->tanggal ?: null,
+                    'status'      => $request->status ?: null,
+                    'keterangan'  => $request->keterangan ?: null,
+                    'tanggal'     => $request->tanggal ?: null,
+                    'jam_mulai'   => $request->jam_mulai ? (int) $request->jam_mulai : null,
+                    'jam_selesai' => $request->jam_selesai ? (int) $request->jam_selesai : null,
                 ], fn($v) => ! is_null($v));
 
                 $response = Http::withHeaders($this->headers())
