@@ -1,5 +1,4 @@
-<x-layout-app title="Database Prestasi" role="admin">
-  
+<x-layout-app title="Database Prestasi" :role="$role">  
     <div class="flex-1 overflow-y-auto p-6 custom-scroll bg-[#f8fafc]">
         <div class="mx-auto space-y-5">
 
@@ -275,7 +274,7 @@
         selectSiswa.disabled = true;
 
         try {
-            const res = await fetch(`/admin/api-siswa-by-kelas?kelas=${kelas}`);
+            const res = await fetch(`/bk/api-siswa-by-kelas?kelas=${kelas}`);
             const result = await res.json();
             
             // Handle jika result berupa {data: [...]} atau langsung [...]
@@ -339,7 +338,7 @@
     async function handleSimpanPrestasi() {
         const formEl = document.getElementById('formPrestasi');
         const fd = new FormData(formEl);
-        const url = isEdit ? `/admin/api-update-prestasi/${editId}` : `/admin/api-simpan-prestasi`;
+        const url = isEdit ? `/bk/api-update-prestasi/${editId}` : `/bk/api-simpan-prestasi`;
 
         Swal.fire({title: 'Sedang memproses...', didOpen: () => Swal.showLoading(), allowOutsideClick: false});
 
@@ -373,7 +372,7 @@
         }).then(async (r) => {
             if(r.isConfirmed) {
                 Swal.fire({title: 'Menghapus...', didOpen: () => Swal.showLoading()});
-                const res = await fetch(`/admin/api-hapus-prestasi/${id}`, {
+                const res = await fetch(`/bk/api-hapus-prestasi/${id}`, {
                     method: 'DELETE',
                     headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
                 });

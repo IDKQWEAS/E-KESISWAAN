@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\GuruBK;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -24,9 +24,10 @@ class LaporanController extends Controller
     {
         return env('API_BASE_URL');
     }
+   public function index() {
+    $user = Session::get('user_data') ?? Session::get('user');
+    $role = $user['role'] ?? 'guru_bk';
 
-    public function index()
-    {
         $token = Session::get('token');
         if (!$token) return redirect()->route('login');
 
@@ -40,8 +41,8 @@ class LaporanController extends Controller
             Log::error('Laporan Index Error: ' . $e->getMessage());
         }
 
-        return view('admin.laporan', compact('taList'));
-    }
+        return view('guru_bk.laporan', compact('taList', 'role'));    
+        }
 
     public function download(Request $request, $type, $format)
     {

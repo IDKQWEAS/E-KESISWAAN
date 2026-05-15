@@ -1,5 +1,6 @@
-<x-layout-app title="Cetak Laporan" role="admin">
-    {{-- Padding dikurangi dari p-8 ke p-6 --}}
+
+<x-layout-app title="Database Prestasi" :role="$role">
+    {{-- Isi Konten --}}
     <div class="flex-1 overflow-y-auto p-6 custom-scroll bg-[#f8fafc]">
         
         <div class="mx-auto space-y-6">
@@ -87,7 +88,7 @@
             const idTA = document.getElementById('filterTA').value;
 
             // Susun URL dengan query string
-            const baseUrl = "{{ url('/admin/laporan/download') }}";
+            const baseUrl = "{{ url('/bk/laporan/download') }}";
             const fullUrl = `${baseUrl}/${type}/${format}?kelas=${kelas}&id_tahun_ajaran=${idTA}`;
 
             // Tampilkan Loading Swal untuk UX

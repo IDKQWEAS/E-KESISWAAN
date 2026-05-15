@@ -67,6 +67,9 @@
                 <div class="flex flex-col gap-1.5">
                     <x-nav-link href="{{ route('bk.dashboard') }}" icon="fa-chart-line" :active="request()->routeIs('bk.dashboard')">Dashboard & Analisis</x-nav-link>
                     <x-nav-link href="{{ route('bk.pelanggaran') }}" icon="fa-gavel" :active="request()->routeIs('bk.pelanggaran')">Input Pelanggaran</x-nav-link>
+                    <x-nav-link href="{{ route('bk.prestasi') }}" icon="fa-trophy" :active="request()->routeIs('bk.prestasi')">Data Prestasi</x-nav-link>
+                    <x-nav-link href="{{ route('bk.laporan') }}" icon="fa-file-lines" :active="request()->routeIs('bk.laporan')">Cetak Laporan</x-nav-link>
+
                     <x-nav-link href="{{ route('bk.pemantauan') }}" icon="fa-eye" :active="request()->routeIs('bk.pemantauan')">Pemantauan Siswa</x-nav-link>
                     <x-nav-link href="{{ route('bk.biodata') }}" icon="fa-address-card" :active="request()->routeIs('bk.biodata')">Biodata Lengkap</x-nav-link>
                 </div>
@@ -96,9 +99,8 @@
                 <div class="flex flex-col gap-1.5">
                     <x-nav-link href="{{ route('admin.dashboard') }}" icon="fa-chart-line" :active="request()->routeIs('admin.dashboard')">Dashboard</x-nav-link>
                     <x-nav-link href="{{ route('admin.kehadiran') }}" icon="fa-calendar-check" :active="request()->routeIs('admin.kehadiran')">Data Kehadiran</x-nav-link>
-                    <x-nav-link href="{{ route('admin.siswa') }}" icon="fa-users" :active="request()->routeIs('admin.siswa')">Data Siswa</x-nav-link>                    <x-nav-link href="{{ route('admin.prestasi') }}" icon="fa-trophy" :active="request()->routeIs('admin.prestasi')">Data Prestasi</x-nav-link>
+                    <x-nav-link href="{{ route('admin.siswa') }}" icon="fa-users" :active="request()->routeIs('admin.siswa')">Data Siswa</x-nav-link>                    
                     <x-nav-link href="{{ route('admin.pelanggaran') }}" icon="fa-gavel" :active="request()->routeIs('admin.pelanggaran')">Data Pelanggaran</x-nav-link>
-                    <x-nav-link href="{{ route('admin.laporan') }}" icon="fa-file-lines" :active="request()->routeIs('admin.laporan')">Cetak Laporan</x-nav-link>
                 </div>
             </div>
 

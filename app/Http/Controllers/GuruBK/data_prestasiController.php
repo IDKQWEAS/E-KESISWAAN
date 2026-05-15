@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\GuruBK;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -21,10 +21,13 @@ class data_prestasiController extends Controller
     private function base() {
         return env('API_BASE_URL');
     }
-
     public function index(Request $request) {
-        if (!Session::has('token')) return redirect()->route('login');
-        $dataPrestasi = []; $taList = []; $taAktif = null;
+    if (!Session::has('token')) return redirect()->route('login');
+    
+    $user = Session::get('user_data') ?? Session::get('user');
+    $role = $user['role'] ?? 'guru_bk'; // Variabel sudah ada
+    $dataPrestasi = []; $taList = []; $taAktif = null;
+
 
         try {
             $resTa = Http::withHeaders($this->headers())->get($this->base() . '/tahun_ajaran');
@@ -46,8 +49,7 @@ class data_prestasiController extends Controller
             }
         } catch (\Exception $e) { \Log::error('Index Prestasi: ' . $e->getMessage()); }
 
-        return view('admin.data_prestasi', compact('dataPrestasi', 'taList', 'taAktif'));
-    }
+return view('guru_bk.data_prestasi', compact('dataPrestasi', 'taList', 'taAktif', 'role'));    }
 
     public function getSiswaByKelas(Request $request) {
         $resTa = Http::withHeaders($this->headers())->get($this->base() . '/tahun_ajaran');

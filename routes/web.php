@@ -6,11 +6,9 @@ use App\Http\Controllers\Admin\DashboardController as AdminDash;
 // --- Controllers: Dashboard ---
 use App\Http\Controllers\Admin\data_kehadiranController;
 use App\Http\Controllers\Admin\data_pelanggaranController;
-use App\Http\Controllers\Admin\data_prestasiController;
 use App\Http\Controllers\Admin\data_siswaController;
 
 // --- Controllers: Admin ---
-use App\Http\Controllers\Admin\LaporanController;
 use App\Http\Controllers\admin\PengaturanController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\AuthController;
@@ -26,6 +24,8 @@ use App\Http\Controllers\GuruBK\PerizinanController as GuruBKPerizinanController
 use App\Http\Controllers\GuruBK\RekapKehadiranController as GuruBKRekapKehadiranController;
 use App\Http\Controllers\Kepsek\DashboardController as KepsekDash;
 use App\Http\Controllers\Kepsek\EditProfilController;
+use App\Http\Controllers\GuruBK\data_prestasiController;
+use App\Http\Controllers\GuruBK\LaporanController;
 
 // --- Controllers: Kepsek ---
 use App\Http\Controllers\Kepsek\MonitoringAbsensiController;
@@ -63,20 +63,11 @@ Route::middleware(['web'])->group(function () {
         Route::get('/data-kehadiran', [data_kehadiranController::class, 'index'])->name('admin.kehadiran');
         Route::get('/data-siswa', [data_siswaController::class, 'index'])->name('admin.siswa');
 
-        // Modul Prestasi (Sudah Dirapikan)
-        Route::get('/data-prestasi', [data_prestasiController::class, 'index'])->name('admin.prestasi');
-        Route::get('/api-siswa-by-kelas', [data_prestasiController::class, 'getSiswaByKelas']);
-        Route::post('/api-simpan-prestasi', [data_prestasiController::class, 'store']);
-        Route::post('/api-update-prestasi/{id}', [data_prestasiController::class, 'update']); // Gunakan POST untuk multipart/form-data
-        Route::delete('/api-hapus-prestasi/{id}', [data_prestasiController::class, 'destroy']);
-
+        
         // Modul Pelanggaran
         Route::get('/data-pelanggaran', [data_pelanggaranController::class, 'index'])->name('admin.pelanggaran');
 
-        // Laporan
-        Route::get('/laporan', [LaporanController::class, 'index'])->name('admin.laporan');
-        Route::get('/laporan/download/{type}/{format}', [LaporanController::class, 'download'])->name('admin.laporan.download');
-
+    
         // Manajemen User
         Route::get('/users', [UserController::class, 'index'])->name('admin.users');
         Route::post('/api-simpan-user', [UserController::class, 'store']);
@@ -145,6 +136,17 @@ Route::middleware(['web'])->group(function () {
         Route::get('/biodata/template', [GuruBKBiodataController::class, 'downloadTemplate'])->name('bk.biodata.template');
         Route::get('/biodata/excel', [GuruBKBiodataController::class, 'downloadExcel'])->name('bk.biodata.excel');
         Route::post('/biodata/import', [GuruBKBiodataController::class, 'importExcel'])->name('bk.biodata.import');
+
+        // --- PINDAHAN DARI ADMIN: DATA PRESTASI ---
+    Route::get('/data-prestasi', [data_prestasiController::class, 'index'])->name('bk.prestasi');
+    Route::get('/api-siswa-by-kelas', [data_prestasiController::class, 'getSiswaByKelas']);
+    Route::post('/api-simpan-prestasi', [data_prestasiController::class, 'store']);
+    Route::post('/api-update-prestasi/{id}', [data_prestasiController::class, 'update']);
+    Route::delete('/api-hapus-prestasi/{id}', [data_prestasiController::class, 'destroy']);
+
+    // --- PINDAHAN DARI ADMIN: CETAK LAPORAN ---
+    Route::get('/laporan', [LaporanController::class, 'index'])->name('bk.laporan');
+    Route::get('/laporan/download/{type}/{format}', [LaporanController::class, 'download'])->name('bk.laporan.download');
     });
 
     // --- KEPSEK ROUTES ---
