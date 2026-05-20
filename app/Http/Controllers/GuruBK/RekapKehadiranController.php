@@ -34,6 +34,7 @@ class RekapKehadiranController extends Controller
 
         $role       = $user['role'] ?? 'guru_bk';
         $kelasAktif = $request->get('kelas', '');
+        $bulanAktif = $request->get('bulan', date('n')); // Default ke nomor bulan sekarang (1-12)
         $taResolved = $this->resolveTahunAjaran($token, $request->get('id_tahun_ajaran'));
 
         $absensi    = [];
@@ -43,6 +44,12 @@ class RekapKehadiranController extends Controller
             $params = ['page' => $request->get('page', 1), 'limit' => 20];
             if ($kelasAktif) {
                 $params['kelas'] = $kelasAktif;
+            }
+            
+            // Kirim parameter bulan ke API Node.js kawan
+            if ($bulanAktif) {
+                $params['bulan'] = $bulanAktif;
+                $params['month'] = $bulanAktif; // Antisipasi kl BE menggunakan key 'month'
             }
 
             if ($taResolved['tahun_ajaran']) {
@@ -60,7 +67,7 @@ class RekapKehadiranController extends Controller
             }
         } catch (\Exception $e) {}
 
-        return view('guru_bk.rekap_kehadiran', compact('absensi', 'pagination', 'role', 'kelasAktif'));
+        return view('guru_bk.rekap_kehadiran', compact('absensi', 'pagination', 'role', 'kelasAktif', 'bulanAktif'));
     }
 
     public function downloadPdf(Request $request)
@@ -71,6 +78,7 @@ class RekapKehadiranController extends Controller
         }
 
         $kelasAktif = $request->get('kelas', '');
+        $bulanAktif = $request->get('bulan', date('n')); // Ambil data bulan
         $taResolved = $this->resolveTahunAjaran($token, $request->get('id_tahun_ajaran'));
 
         if (! $taResolved['tahun_ajaran']) {
@@ -85,11 +93,15 @@ class RekapKehadiranController extends Controller
             if ($kelasAktif) {
                 $params['kelas'] = $kelasAktif;
             }
+            if ($bulanAktif) {
+                $params['bulan'] = $bulanAktif;
+                $params['month'] = $bulanAktif;
+            }
 
             $r = Http::withHeaders(['Cookie' => 'token=' . $token])->timeout(60)->get(env('API_BASE_URL') . '/export/absensi/pdf', $params);
 
             if ($r->successful()) {
-                $namaFile = $kelasAktif ? "Rekap_Kehadiran_Kelas_{$kelasAktif}.pdf" : "Rekap_Kehadiran_Semua.pdf";
+                $namaFile = $kelasAktif ? "Rekap_Kehadiran_Kelas_{$kelasAktif}_Bulan_{$bulanAktif}.pdf" : "Rekap_Kehadiran_Semua_Bulan_{$bulanAktif}.pdf";
                 return response($r->body())
                     ->header('Content-Type', 'application/pdf')
                     ->header('Content-Disposition', 'attachment; filename="' . $namaFile . '"');
@@ -106,6 +118,7 @@ class RekapKehadiranController extends Controller
         }
 
         $kelasAktif = $request->get('kelas', '');
+        $bulanAktif = $request->get('bulan', date('n')); // Ambil data bulan
         $taResolved = $this->resolveTahunAjaran($token, $request->get('id_tahun_ajaran'));
 
         if (! $taResolved['tahun_ajaran']) {
@@ -120,11 +133,15 @@ class RekapKehadiranController extends Controller
             if ($kelasAktif) {
                 $params['kelas'] = $kelasAktif;
             }
+            if ($bulanAktif) {
+                $params['bulan'] = $bulanAktif;
+                $params['month'] = $bulanAktif;
+            }
 
             $r = Http::withHeaders(['Cookie' => 'token=' . $token])->timeout(60)->get(env('API_BASE_URL') . '/export/absensi/excel', $params);
 
             if ($r->successful()) {
-                $namaFile = $kelasAktif ? "Rekap_Kehadiran_Kelas_{$kelasAktif}.xlsx" : "Rekap_Kehadiran_Semua.xlsx";
+                $namaFile = $kelasAktif ? "Rekap_Kehadiran_Kelas_{$kelasAktif}_Bulan_{$bulanAktif}.xlsx" : "Rekap_Kehadiran_Semua_Bulan_{$bulanAktif}.xlsx";
                 return response($r->body())
                     ->header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                     ->header('Content-Disposition', 'attachment; filename="' . $namaFile . '"');
